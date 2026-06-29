@@ -1,4 +1,4 @@
-import { db } from './db.js';
+import { db, onAfterSave } from './db.js';
 import { hoje, getSemana } from './dateUtils.js';
 import { initModal, openModal } from './components/modal.js';
 import { renderCardMenu, renderMoverMenu, escapeHtml } from './components/card.js';
@@ -7,6 +7,8 @@ import * as weekView   from './views/weekView.js';
 import * as monthView  from './views/monthView.js';
 import * as kanbanView from './views/kanbanView.js';
 import * as searchView from './views/searchView.js';
+import { isDriveEnabled, initAuth, requestToken } from './googleAuth.js';
+import { baixar, enviar } from './driveSync.js';
 
 // ─── Estado de UI ─────────────────────────────────────────────────────────────
 const state = {
@@ -33,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupBusca();
   renderViewAtual();
   registrarSW();
+  setupDrive();
 });
 
 // ─── Renderização central ─────────────────────────────────────────────────────
@@ -381,6 +384,257 @@ function confirmar(msg, onConfirm) {
   document.body.appendChild(overlay);
   overlay.querySelector('#btn-conf-cancelar').addEventListener('click', () => overlay.remove());
   overlay.querySelector('#btn-conf-ok').addEventListener('click', () => { overlay.remove(); onConfirm(); });
+}
+
+// ─── Google Drive Sync ────────────────────────────────────────────────────────
+
+const _dr = {
+  conectado:    false,  // tem token válido nesta sessão
+  sincronizando: false,
+  fileId:       localStorage.getItem('tmw_drive_file_id') || null,
+  erro:         null,
+};
+
+let _syncTimer    = null;
+let _suppressSync = false; // evita re-sync ao importar dados do Drive
+
+function _deviceId() {
+  let id = localStorage.getItem('tmw_device_id');
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem('tmw_device_id', id); }
+  return id;
+}
+
+function _localUpdatedAt() {
+  const items = db.getAll();
+  if (!items.length) return null;
+  return items.reduce((m, i) => (i.atualizadoEm > m ? i.atualizadoEm : m), '');
+}
+
+function _buildPayload() {
+  return {
+    schemaVersion: 1,
+    updatedAt:     _localUpdatedAt() || new Date().toISOString(),
+    deviceId:      _deviceId(),
+    items:         db.getAll(),
+  };
+}
+
+async function setupDrive() {
+  if (!isDriveEnabled()) return;
+
+  // Mostra UI
+  document.getElementById('btn-drive').classList.add('drive-enabled');
+  document.getElementById('drive-bar').classList.add('drive-enabled');
+
+  // Conecta listeners antes mesmo do GIS carregar
+  document.getElementById('btn-drive').addEventListener('click', () => {
+    if (!_dr.conectado) conectarDrive(); else sincronizarDrive();
+  });
+  document.getElementById('btn-drive-mobile').addEventListener('click', () => {
+    if (!_dr.conectado) conectarDrive(); else sincronizarDrive();
+  });
+
+  const ok = await initAuth();
+  if (!ok) {
+    _dr.erro = 'Falha ao carregar Google Auth';
+    _atualizarDriveUI('erro');
+    return;
+  }
+
+  const foiConectado = localStorage.getItem('tmw_drive_was_connected') === 'true';
+  _atualizarDriveUI(foiConectado ? 'reconectar' : 'desconectado');
+
+  // Hook para sync automático após qualquer save
+  onAfterSave(() => {
+    if (_dr.conectado && !_suppressSync) agendarSync();
+  });
+}
+
+async function conectarDrive() {
+  _atualizarDriveUI('conectando');
+  try {
+    await requestToken('');
+    _dr.conectado = true;
+    _dr.erro = null;
+    localStorage.setItem('tmw_drive_was_connected', 'true');
+    _atualizarDriveUI('conectado');
+    toast('Google Drive conectado.');
+    await sincronizarDrive();
+  } catch (err) {
+    _dr.conectado = false;
+    _dr.erro = err.message;
+    _atualizarDriveUI('erro');
+    toast('Falha ao conectar ao Google Drive.', 'erro');
+  }
+}
+
+function agendarSync() {
+  clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(sincronizarDrive, 3000);
+}
+
+async function sincronizarDrive() {
+  if (!_dr.conectado || _dr.sincronizando) return;
+  _dr.sincronizando = true;
+  _dr.erro = null;
+  _atualizarDriveUI('sincronizando');
+
+  try {
+    const resultado  = await baixar();
+    const localAt    = _localUpdatedAt();
+    const syncTime   = localStorage.getItem('tmw_drive_sync_time') || null;
+
+    if (!resultado) {
+      // Sem arquivo no Drive → criar com dados locais
+      const id = await enviar(_buildPayload());
+      _guardarFileId(id);
+      _guardarSyncTime();
+      toast('Dados enviados ao Google Drive.');
+    } else {
+      const { payload: dp, fileId } = resultado;
+      _guardarFileId(fileId);
+
+      if (!syncTime) {
+        // Primeira conexão com arquivo existente → pedir decisão ao usuário
+        _dr.sincronizando = false;
+        _atualizarDriveUI('conectado');
+        _modalConflito(dp, localAt);
+        return;
+      }
+
+      const driveNewer = (dp.updatedAt || '') > syncTime;
+      const localNewer = localAt && localAt > syncTime;
+
+      if (driveNewer && localNewer) {
+        _dr.sincronizando = false;
+        _atualizarDriveUI('conectado');
+        _modalConflito(dp, localAt);
+        return;
+      }
+
+      if (driveNewer) {
+        _suppressSync = true;
+        db.importJSON(dp);
+        _suppressSync = false;
+        renderViewAtual();
+        _guardarSyncTime();
+        toast('Dados atualizados do Google Drive.');
+      } else if (localNewer) {
+        await enviar(_buildPayload(), _dr.fileId);
+        _guardarSyncTime();
+        toast('Dados sincronizados com Google Drive.');
+      } else {
+        _guardarSyncTime();
+      }
+    }
+
+    _dr.sincronizando = false;
+    _atualizarDriveUI('sincronizado');
+  } catch (err) {
+    _dr.sincronizando = false;
+    _dr.erro = err.message;
+    _atualizarDriveUI('erro');
+    toast('Falha na sincronização com o Drive.', 'erro');
+  }
+}
+
+function _guardarFileId(id) {
+  _dr.fileId = id;
+  if (id) localStorage.setItem('tmw_drive_file_id', id);
+}
+
+function _guardarSyncTime() {
+  localStorage.setItem('tmw_drive_sync_time', new Date().toISOString());
+}
+
+function _modalConflito(drivePayload, localAt) {
+  const fmt = (iso) => iso ? new Date(iso).toLocaleString('pt-BR') : '—';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'confirmar-overlay';
+  overlay.innerHTML = `
+    <div class="confirmar-box">
+      <p class="confirmar-msg" style="font-weight:700;margin-bottom:6px">Conflito de dados</p>
+      <p class="confirmar-msg" style="font-size:.825rem;opacity:.8">Existem dados no Google Drive e dados locais. Qual versão usar?</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin:14px 0 4px">
+        <button class="btn-pri" id="_conf-drive">
+          Usar dados do Drive
+          <small style="display:block;font-weight:400;opacity:.75">${drivePayload.items?.length ?? 0} itens · ${fmt(drivePayload.updatedAt)}</small>
+        </button>
+        <button class="btn-sec" id="_conf-local">
+          Manter dados locais
+          <small style="display:block;font-weight:400;opacity:.7">${db.getAll().length} itens · ${fmt(localAt)}</small>
+        </button>
+        <button class="btn-sec" id="_conf-cancel" style="opacity:.7">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#_conf-drive').addEventListener('click', async () => {
+    overlay.remove();
+    _suppressSync = true;
+    db.importJSON(drivePayload);
+    _suppressSync = false;
+    renderViewAtual();
+    _guardarSyncTime();
+    _atualizarDriveUI('sincronizado');
+    toast('Dados do Drive carregados.');
+  });
+
+  overlay.querySelector('#_conf-local').addEventListener('click', async () => {
+    overlay.remove();
+    _dr.sincronizando = true;
+    _atualizarDriveUI('sincronizando');
+    try {
+      await enviar(_buildPayload(), _dr.fileId);
+      _guardarSyncTime();
+      _dr.sincronizando = false;
+      _atualizarDriveUI('sincronizado');
+      toast('Dados locais enviados ao Drive.');
+    } catch (err) {
+      _dr.sincronizando = false;
+      _dr.erro = err.message;
+      _atualizarDriveUI('erro');
+      toast('Falha ao enviar dados ao Drive.', 'erro');
+    }
+  });
+
+  overlay.querySelector('#_conf-cancel').addEventListener('click', () => {
+    overlay.remove();
+    _atualizarDriveUI('conectado');
+  });
+}
+
+function _atualizarDriveUI(status) {
+  const S = {
+    desconectado:  { label: 'Conectar Drive',       mLabel: 'Conectar Google Drive',       cor: 'off',      dis: false, title: 'Conectar ao Google Drive'             },
+    reconectar:    { label: 'Reconectar Drive',      mLabel: 'Reconectar Google Drive',     cor: 'off',      dis: false, title: 'Clique para reconectar'               },
+    conectando:    { label: 'Conectando...',          mLabel: 'Conectando...',               cor: 'syncing',  dis: true,  title: 'Conectando...'                        },
+    conectado:     { label: 'Drive conectado',       mLabel: 'Drive conectado',             cor: 'ok',       dis: false, title: 'Clique para sincronizar agora'         },
+    sincronizando: { label: 'Sincronizando...',      mLabel: 'Sincronizando...',            cor: 'syncing',  dis: true,  title: 'Sincronizando...'                     },
+    sincronizado:  { label: 'Drive sincronizado',    mLabel: 'Drive sincronizado',          cor: 'ok',       dis: false, title: 'Sincronizado · clique para forçar'     },
+    erro:          { label: 'Erro no Drive',         mLabel: 'Erro no Drive',               cor: 'err',      dis: false, title: _dr.erro || 'Erro · clique para tentar' },
+  };
+
+  const s = S[status] || S.desconectado;
+
+  const btn  = document.getElementById('btn-drive');
+  const lbl  = document.getElementById('drive-label');
+  const btnM = document.getElementById('btn-drive-mobile');
+  const lblM = document.getElementById('drive-bar-label');
+
+  if (btn && lbl) {
+    btn.className = `drive-btn drive-enabled drive-btn--${s.cor}`;
+    lbl.textContent = s.label;
+    btn.title    = s.title;
+    btn.disabled = s.dis;
+  }
+  if (btnM && lblM) {
+    btnM.className = `drive-bar-btn drive-bar-btn--${s.cor}`;
+    lblM.textContent = s.mLabel;
+    btnM.disabled = s.dis;
+  }
 }
 
 // ─── Service Worker ───────────────────────────────────────────────────────────

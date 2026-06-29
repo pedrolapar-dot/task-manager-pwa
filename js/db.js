@@ -2,6 +2,9 @@ import { storage } from './storage.js';
 import { hoje, addDias } from './dateUtils.js';
 
 let _items = [];
+let _afterSave = null;
+
+export function onAfterSave(cb) { _afterSave = cb; }
 
 function defaults(dados) {
   const now = new Date().toISOString();
@@ -111,6 +114,7 @@ export const db = {
     const item = defaults(dados);
     _items.push(item);
     storage.save(_items);
+    _afterSave?.();
     return item;
   },
 
@@ -119,12 +123,14 @@ export const db = {
     if (idx === -1) return null;
     _items[idx] = { ..._items[idx], ...dados, atualizadoEm: new Date().toISOString() };
     storage.save(_items);
+    _afterSave?.();
     return _items[idx];
   },
 
   delete(id) {
     _items = _items.filter(i => i.id !== id);
     storage.save(_items);
+    _afterSave?.();
   },
 
   exportJSON() {
@@ -143,6 +149,7 @@ export const db = {
       ...i,
     }));
     storage.save(_items);
+    _afterSave?.();
   },
 };
 

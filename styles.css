@@ -762,6 +762,55 @@ a { color: var(--accent); }
 .icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* =====================================================
+   DRIVE
+   ===================================================== */
+
+/* Botão Drive no top-nav (desktop) — oculto por padrão, exibido via JS */
+.drive-btn {
+  display: none;
+  align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: var(--radius-sm);
+  font-size: .72rem; font-weight: 600; letter-spacing: .2px;
+  color: var(--text-secondary); border: 1px solid var(--border);
+  transition: background .15s, color .15s, border-color .15s;
+  white-space: nowrap; cursor: pointer;
+}
+.drive-btn.drive-enabled { display: flex; }
+.drive-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.drive-btn:disabled { opacity: .55; cursor: default; }
+.drive-btn--ok  { color: #22c55e; border-color: rgba(34,197,94,.35); }
+.drive-btn--err { color: var(--prio-urgente); border-color: rgba(240,71,71,.35); }
+.drive-btn--syncing {
+  color: var(--accent); border-color: rgba(30,79,163,.4);
+  animation: drivePulse 1.4s ease-in-out infinite;
+}
+@keyframes drivePulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+/* Drive bar (mobile) — oculta por padrão, exibida via JS */
+.drive-bar {
+  display: none;
+  align-items: center; justify-content: space-between;
+  background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+  padding: 6px 16px; gap: 8px;
+}
+.drive-bar.drive-enabled { display: flex; }
+@media (min-width: 768px) { .drive-bar { display: none !important; } }
+
+.drive-bar-btn {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .72rem; font-weight: 600; color: var(--text-secondary);
+  padding: 4px 0; transition: color .15s; white-space: nowrap;
+}
+.drive-bar-btn:disabled { opacity: .55; cursor: default; }
+.drive-bar-btn--ok    { color: #22c55e; }
+.drive-bar-btn--err   { color: var(--prio-urgente); }
+.drive-bar-btn--syncing { color: var(--accent); animation: drivePulse 1.4s ease-in-out infinite; }
+
+.drive-bar-status {
+  font-size: .68rem; color: var(--text-muted); text-align: right;
+}
+
+/* =====================================================
    CONFIRMAÇÃO
    ===================================================== */
 .confirmar-overlay {

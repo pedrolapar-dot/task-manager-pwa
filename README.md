@@ -42,6 +42,13 @@ Gerenciador pessoal de tarefas, projetos, entregas e agenda. PWA instalável no 
 - No **desktop:** botões no canto superior direito
 - No **mobile:** botões na aba Gestão
 
+### Google Drive Sync (opcional)
+- Sincroniza dados entre dispositivos via Drive `appDataFolder` (pasta privada, invisível no Drive)
+- Sync automático debounced (3s) após qualquer criação/edição/exclusão
+- Detecção de conflito quando dois dispositivos têm dados divergentes
+- Funciona sem configuração — o app opera normalmente sem o Drive
+- Requer um Client ID OAuth 2.0 — veja `NEXT_STEPS.md` para o passo a passo
+
 ---
 
 ## Dados e armazenamento
@@ -90,12 +97,12 @@ npx serve . -p 8787
 
 ## Como publicar no GitHub Pages
 
-1. Crie um repositório público chamado `task-manager-pwa` em [github.com/pedrolapar](https://github.com/pedrolapar).
+1. Crie um repositório público chamado `task-manager-pwa` em [github.com/pedrolapar-dot](https://github.com/pedrolapar-dot).
 2. Dentro da pasta `task-manager-pwa`, rode:
 
 ```bash
 git init
-git remote add origin https://github.com/pedrolapar/task-manager-pwa.git
+git remote add origin https://github.com/pedrolapar-dot/task-manager-pwa.git
 git add .
 git commit -m "feat: versão 1 — task manager pwa"
 git push -u origin main
@@ -105,7 +112,7 @@ git push -u origin main
 4. Aguarde ~1 minuto. O app estará em:
 
 ```
-https://pedrolapar.github.io/task-manager-pwa/
+https://pedrolapar-dot.github.io/task-manager-pwa/
 ```
 
 O app detecta automaticamente o ambiente — o mesmo código funciona em `localhost:8787/` e em `/task-manager-pwa/` no GitHub Pages.
@@ -163,7 +170,7 @@ task-manager-pwa/
 
 ## Limitações conhecidas
 
-- **Sem sincronização:** dados ficam no localStorage do dispositivo. Não sincroniza entre navegadores ou dispositivos automaticamente. Veja `NEXT_STEPS.md` para o plano de integração com Google Drive.
+- **Sincronização Drive opcional:** o Google Drive Sync está implementado mas requer configurar um Client ID no `js/config.js`. Veja `NEXT_STEPS.md` para o passo a passo completo.
 - **Sem notificações push:** lembretes e horários não geram alertas nativos.
 - **iOS Safari PWA:** ao adicionar à tela inicial no iOS, o app perde o contexto do Safari — cada abertura reinicia o browser interno. O localStorage é mantido.
 - **Exportação no iOS:** o arquivo JSON é exibido no browser em vez de baixado diretamente (comportamento nativo do iOS). Use "Compartilhar → Salvar em Arquivos" para guardar.
