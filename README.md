@@ -1,178 +1,144 @@
 # Task Manager PWA
 
-Gerenciador pessoal de tarefas, projetos, entregas e agenda. PWA instalável no celular e no Mac via navegador, sem dependências externas — HTML, CSS e JavaScript puro.
+Agenda pessoal completa do Pedro: tarefas, projetos, reuniões, treinos e eventos.
+PWA instalável no celular e no Mac, sem dependências externas — HTML, CSS e
+JavaScript puro, hospedado no GitHub Pages.
+
+**App no ar:** https://pedrolapar-dot.github.io/task-manager-pwa/
 
 ---
 
-## Funcionalidades
+## Como o app funciona (regras principais)
 
-### Visão geral
-- **4 abas principais:** Dia, Semana, Mês e Gestão (Kanban)
-- **Busca global** em tempo real (título, descrição, tags, tipo, status, prioridade)
-- **Subtarefas** com progresso por item
-- **Recorrência** diária, semanal e mensal com expansão dinâmica
-- **Backup JSON** — exportar e importar todos os dados
-- **PWA instalável** no celular (Android/iOS) e no Mac via browser
+- **Criar e editar itens: só na aba Gestão** (kanban). O botão ➕ e o menu ⋮
+  dos cards existem apenas lá.
+- **Fora da Gestão** (Dia, Semana, Mês, busca), tocar num card abre o **modal
+  de detalhes** (somente leitura). Ali dá para: marcar/desmarcar subtarefas,
+  concluir/reabrir a ocorrência de itens recorrentes, e exportar o item para
+  o calendário.
+- **Check rápido:** todo card fora da Gestão tem um círculo — um toque conclui
+  (item ou ocorrência do dia), outro reabre.
+- **Ordenação por horário** em todas as views: com horário primeiro (mais cedo
+  → mais tarde), sem horário depois (por prioridade).
+- **Subtarefas de itens recorrentes são por dia** (`subtarefasPorDia`): o
+  checklist zera a cada ocorrência e cada data lembra o que foi marcado.
+  Ex.: treino de academia — os exercícios recomeçam desmarcados toda semana.
+  Na Gestão se edita só a estrutura do checklist.
+- **Aba Dia (em "hoje")**: seção *Atrasadas* (itens de dias anteriores em
+  aberto — pausados não contam), linha vermelha do horário atual, chips
+  "agora" / "a seguir", atualização automática a cada minuto.
+- **Notificações via calendário (.ics):** itens marcados com **"Notificar"**
+  no formulário entram na exportação da agenda (botão de calendário no topo /
+  na Gestão). O arquivo importa no calendário nativo com alerta 15 min antes;
+  recorrentes viram série (RRULE). É uma exportação pontual — mudou o item,
+  exporta de novo.
+- **Kanban:** colunas recolhíveis no desktop (clique no cabeçalho; Cancelado e
+  Arquivado começam recolhidas), chips deslizáveis no mobile, recorrentes
+  mostram/ordenam pela próxima ocorrência, botão de arquivar concluídos,
+  "Duplicar" no menu ⋮.
+- **Histórico/streak:** modal de detalhes de item recorrente mostra as últimas
+  5 ocorrências e a sequência atual (feita = ocorrência concluída OU todas as
+  subtarefas do dia marcadas).
 
-### Tipos de item
-`Tarefa`, `Projeto`, `Reunião`, `Entrega`, `Feriado`, `Evento`, `Lembrete`
+### Tipos, status e prioridades
 
-### Status (colunas Kanban)
-`Backlog` → `Ativo` → `Em andamento` → `Aguardando` → `Pausado` → `Concluído` → `Cancelado` → `Arquivado`
-
-### Prioridades
-`Urgente`, `Alta`, `Média`, `Baixa`
-
-### Recorrência
-- **Diária:** a cada N dias
-- **Semanal:** dias específicos da semana + a cada N semanas
-- **Mensal:** dia do mês + a cada N meses
-- Ocorrências são geradas dinamicamente — não ficam salvas no localStorage
-- Concluir ou remover uma ocorrência específica não afeta as demais
-- Editar ou mover no Kanban afeta toda a série
-
-### Subtarefas
-- Lista de checklist dentro de cada item
-- Badge `X/Y` exibido no card; fica verde quando todas estão concluídas
-- Gerenciadas no modal de edição
-
-### Backup
-- **Exportar:** gera arquivo `.json` com todos os dados
-- **Importar:** restaura dados a partir de um arquivo `.json` (substitui tudo, com confirmação)
-- No **desktop:** botões no canto superior direito
-- No **mobile:** botões na aba Gestão
-
-### Google Drive Sync (opcional)
-- Sincroniza dados entre dispositivos via Drive `appDataFolder` (pasta privada, invisível no Drive)
-- Sync automático debounced (3s) após qualquer criação/edição/exclusão
-- Detecção de conflito quando dois dispositivos têm dados divergentes
-- Funciona sem configuração — o app opera normalmente sem o Drive
-- Requer um Client ID OAuth 2.0 — veja `NEXT_STEPS.md` para o passo a passo
+- Tipos: `tarefa · projeto · reuniao · entrega · evento · lembrete · feriado`
+- Status (colunas do kanban): `backlog · ativo · em_andamento · aguardando ·
+  pausado · concluido · cancelado · arquivado`
+- Prioridades: `baixa · media · alta · urgente`
 
 ---
 
-## Dados e armazenamento
+## Dados
 
-Os dados ficam salvos no **localStorage do navegador**. Isso significa:
+Salvos no **localStorage** (`tmw_items`) e sincronizados com o **Google Drive**
+(`appDataFolder`, arquivo `task-manager-data.json`). O Drive também guarda
+**snapshots diários** (`task-manager-snapshot-YYYY-MM-DD.json`, últimos 7) como
+seguro extra.
 
-- Nenhuma conta, nenhum servidor, nenhum dado enviado a terceiros
-- Se você limpar o cache do browser ou trocar de dispositivo, os dados somem
-- Use o **export/import** para fazer backup antes de limpar o browser ou migrar de dispositivo
-- Cada browser/dispositivo tem seu próprio localStorage independente
+Campos de um item (schema v1):
+
+```
+id, titulo, tipo, descricao, data, horaInicio, horaFim, prazo, prioridade,
+status, tags[], notificar, subtarefas[{id, titulo, concluida, ...}],
+subtarefasPorDia{ 'YYYY-MM-DD': [subId,...] },   // recorrentes: feitas por dia
+recorrente, recorrencia{frequencia, intervalo, diasSemana, diaMes, dataFim},
+ocorrenciasConcluidas[], ocorrenciasIgnoradas[], criadoEm, atualizadoEm
+```
+
+Campos novos são adicionados por migração em `db.js` (`migrar()`) — dados
+antigos continuam válidos. Tags são normalizadas ao salvar/carregar (sem
+espaços/pontos finais, sem duplicatas).
+
+⚠️ Nunca limpar "dados de site" do navegador — apaga o localStorage. O backup
+JSON (Exportar/Importar) e o Drive existem pra isso.
 
 ---
 
-## Como rodar localmente
+## Como atualizar o app nos aparelhos
 
-O app é estático — não precisa de build. Basta abrir o terminal, entrar na pasta do projeto e rodar um servidor HTTP.
+Depois de qualquer `git push`, o GitHub Pages publica sozinho (~1 min).
+Nos aparelhos: **abrir o app → esperar uns segundos → fechar e abrir**.
+O service worker usa stale-while-revalidate com `cache: 'no-cache'`, então a
+versão nova chega no reload seguinte, sem limpar nada.
 
-### Passo a passo
+Ao mudar arquivos JS/CSS: **dar bump no `CACHE_NAME`** do `service-worker.js`
+e adicionar arquivos novos à lista `ARQUIVOS`.
+
+---
+
+## Rodar localmente
 
 ```bash
-cd caminho/para/task-manager-pwa
-python3 -m http.server 8787
+cd task-manager-pwa
+python3 -m http.server 8787   # → http://localhost:8787/
 ```
 
-Depois abra no navegador:
-
-```
-http://localhost:8787/
-```
-
-> O terminal precisa continuar aberto enquanto o app estiver sendo testado. Fechar o terminal encerra o servidor.
-
-### Alternativas (mesma lógica, mesma URL)
-
-```bash
-# Node.js / npx
-npx serve . -p 8787
-
-# VS Code Live Server: botão direito em index.html → "Open with Live Server"
-# (a porta pode ser diferente — verifique na barra de endereço do browser)
-```
-
-> **Importante:** sempre entre na pasta `task-manager-pwa` antes de iniciar o servidor. O app deve abrir em `http://localhost:8787/` (raiz), não em `/task-manager-pwa/`. O Service Worker e o manifest são configurados automaticamente para o ambiente detectado.
+Dica para testar mudanças sem briga de cache: servir com `Cache-Control:
+no-store` (ou recarregar duas vezes — a primeira revalida, a segunda pega).
 
 ---
 
-## Como publicar no GitHub Pages
-
-1. Crie um repositório público chamado `task-manager-pwa` em [github.com/pedrolapar-dot](https://github.com/pedrolapar-dot).
-2. Dentro da pasta `task-manager-pwa`, rode:
-
-```bash
-git init
-git remote add origin https://github.com/pedrolapar-dot/task-manager-pwa.git
-git add .
-git commit -m "feat: versão 1 — task manager pwa"
-git push -u origin main
-```
-
-3. No GitHub: **Settings → Pages → Branch: main / folder: / (root)** → Save.
-4. Aguarde ~1 minuto. O app estará em:
+## Estrutura
 
 ```
-https://pedrolapar-dot.github.io/task-manager-pwa/
-```
-
-O app detecta automaticamente o ambiente — o mesmo código funciona em `localhost:8787/` e em `/task-manager-pwa/` no GitHub Pages.
-
----
-
-## Como instalar como PWA
-
-### Android (Chrome)
-1. Abra o app no Chrome
-2. Menu ⋮ → "Adicionar à tela inicial"
-3. Confirme → aparece como app nativo
-
-### iPhone / iPad (Safari)
-1. Abra o app no Safari
-2. Botão de compartilhar → "Adicionar à Tela de Início"
-3. Confirme → aparece no home screen
-
-### Mac (Chrome ou Edge)
-1. Abra o app no Chrome ou Edge
-2. Ícone de instalar na barra de endereço (ou Menu → "Instalar Task Manager")
-3. Confirme → abre como janela separada, sem barra do browser
-
----
-
-## Estrutura do projeto
-
-```
-task-manager-pwa/
 ├── index.html               # Shell do app
-├── styles.css               # Todo o CSS (dark mode, mobile-first)
-├── manifest.webmanifest     # Configuração PWA (paths relativos)
-├── service-worker.js        # Cache offline (detecta ambiente automaticamente)
-├── .gitignore
-├── NEXT_STEPS.md            # Plano de evolução (Google Drive sync, etc.)
-├── assets/
-│   └── icons/               # Ícones PWA (192px e 512px)
+├── styles.css               # Todo o CSS (dark, mobile-first)
+├── manifest.webmanifest     # PWA (paths relativos)
+├── service-worker.js        # Cache offline, stale-while-revalidate
+├── assets/icons/            # Ícones PWA
 └── js/
-    ├── app.js               # Inicialização, estado, eventos globais
-    ├── db.js                # CRUD em memória + persistência
-    ├── storage.js           # Abstração do localStorage
-    ├── dateUtils.js         # Datas, semanas, meses, recorrência
+    ├── app.js               # Bootstrap, estado, eventos, Drive sync, FAB
+    ├── config.js            # GOOGLE_CLIENT_ID (Drive)
+    ├── googleAuth.js        # OAuth (Google Identity Services)
+    ├── driveSync.js         # Upload/download no Drive + snapshots diários
+    ├── db.js                # CRUD + migração + normalização de tags
+    ├── storage.js           # localStorage
+    ├── dateUtils.js         # Datas, semanas, recorrência, próxima ocorrência
+    ├── sortUtils.js         # Ordenação por horário e do kanban
+    ├── ics.js               # Exportação de calendário (.ics)
     ├── components/
-    │   ├── card.js          # Renderização de cards
-    │   └── modal.js         # Modal de criação/edição
+    │   ├── card.js          # Cards (check rápido, próx. ocorrência, badges)
+    │   ├── modal.js         # Criar/editar (chips de tipo/prio, seções, tags)
+    │   └── detailModal.js   # Detalhes somente leitura (subtarefas por dia,
+    │                        #   histórico/streak, ocorrência, calendário)
     └── views/
-        ├── dayView.js       # Aba Dia (timeline)
-        ├── weekView.js      # Aba Semana (grid 7 colunas)
-        ├── monthView.js     # Aba Mês (calendário)
-        ├── kanbanView.js    # Aba Gestão (Kanban + filtros + backup)
-        └── searchView.js    # View de busca global
+        ├── dayView.js       # Dia (atrasadas, linha do agora, timeline)
+        ├── weekView.js      # Semana (dias vazios compactos no mobile)
+        ├── monthView.js     # Mês (calendário + detalhe do dia)
+        ├── kanbanView.js    # Gestão (colunas recolhíveis, chips, filtros)
+        └── searchView.js    # Busca global
 ```
 
 ---
 
 ## Limitações conhecidas
 
-- **Sincronização Drive opcional:** o Google Drive Sync está implementado mas requer configurar um Client ID no `js/config.js`. Veja `NEXT_STEPS.md` para o passo a passo completo.
-- **Sem notificações push:** lembretes e horários não geram alertas nativos.
-- **iOS Safari PWA:** ao adicionar à tela inicial no iOS, o app perde o contexto do Safari — cada abertura reinicia o browser interno. O localStorage é mantido.
-- **Exportação no iOS:** o arquivo JSON é exibido no browser em vez de baixado diretamente (comportamento nativo do iOS). Use "Compartilhar → Salvar em Arquivos" para guardar.
-- **Recorrência no Kanban:** mover um item recorrente no Kanban altera o status da série inteira, não de uma ocorrência específica.
-- **Sem modo de edição por ocorrência:** editar um item recorrente sempre altera toda a série.
+- **Sem push notification nativa** — o caminho é a exportação .ics (itens com
+  "Notificar" ligado). Push de verdade exigiria um servidor.
+- **Editar item recorrente altera a série inteira** (exceto concluir
+  ocorrência e marcar subtarefas, que são por dia).
+- **iOS:** downloads (.json/.ics) abrem a folha de compartilhar em vez de
+  baixar direto — comportamento do iOS.
+- **Snapshots do Drive não têm UI de restauração** — em caso de desastre, é
+  possível restaurar manualmente (os arquivos estão no appDataFolder).

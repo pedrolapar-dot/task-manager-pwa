@@ -1,109 +1,72 @@
-# Próximas Evoluções — Task Manager PWA
+# Estado do projeto e próximos passos
+
+Atualizado em 2026-07-23. Para o panorama completo do app, veja o `README.md`.
+Histórico detalhado de mudanças: `git log`.
 
 ---
 
-## Fase 2 — Google Drive Sync ✅ IMPLEMENTADA
+## Onde o projeto está
 
-A sincronização com Google Drive está completa. Para ativar, basta configurar o Client ID.
+Todas as fases planejadas originalmente foram entregues, e mais:
 
-### Como configurar o Google Drive Sync
+- ✅ **Fase 1** — App base (Dia/Semana/Mês/Gestão, busca, subtarefas, recorrência, backup)
+- ✅ **Fase 2** — Google Drive Sync (instruções de configuração abaixo)
+- ✅ **Fase "agenda"** (jul/2026) — edição só na Gestão, modal de detalhes
+  read-only, ordenação por horário, subtarefas por dia em recorrentes,
+  exportação .ics com opt-in "Notificar", streaks, linha do agora, atrasadas,
+  check rápido, colunas recolhíveis, chips no mobile, snapshots no Drive,
+  formulário com chips e seções.
 
-#### 1. Criar projeto no Google Cloud Console
-
-1. Acesse [console.cloud.google.com](https://console.cloud.google.com/)
-2. Crie um projeto novo (ex: "Task Manager PWA")
-3. Ative a **Google Drive API**: Biblioteca → busque "Google Drive API" → Ativar
-4. Vá em **Credenciais** → Criar credenciais → **ID do cliente OAuth 2.0**
-5. Tipo de aplicativo: **Aplicativo da Web**
-6. Em **Origens JavaScript autorizadas**, adicione:
-   - `http://localhost:8787`
-   - `https://pedrolapar-dot.github.io`
-7. Copie o **Client ID** gerado (formato: `XXXXXXXX.apps.googleusercontent.com`)
-
-#### 2. Colar o Client ID no app
-
-Abra o arquivo `js/config.js` e substitua o placeholder:
-
-```js
-// Antes:
-export const GOOGLE_CLIENT_ID = "COLE_AQUI_SEU_CLIENT_ID";
-
-// Depois:
-export const GOOGLE_CLIENT_ID = "SEU_CLIENT_ID_REAL.apps.googleusercontent.com";
-```
-
-**Importante:** nunca commite o Client ID em repositório público. Adicione `js/config.js` ao `.gitignore` se quiser manter apenas para uso local. O Client ID de OAuth 2.0 de aplicativo web não é secreto (fica visível no HTML) mas identificar o projeto é suficiente para manter em `.gitignore` como boa prática.
-
-#### 3. Testar localmente
-
-```bash
-cd task-manager-pwa
-python3 -m http.server 8787
-```
-
-Abra `http://localhost:8787/` — o botão "Conectar Drive" aparecerá no topo (desktop) ou embaixo da barra de busca (mobile).
-
-#### 4. Publicar atualização no GitHub Pages
-
-```bash
-# De dentro da pasta task-manager-pwa (já inicializada com git):
-git add .
-git commit -m "feat: google drive sync"
-git push
-```
-
-GitHub Pages publica automaticamente. URL: `https://pedrolapar-dot.github.io/task-manager-pwa/`
+A pasta ativa deste projeto é **`task-manager-pwa-github-sync`** (remote:
+`pedrolapar-dot/task-manager-pwa`, publica no GitHub Pages). A pasta irmã
+`task-manager-pwa` é uma cópia antiga, desatualizada — não usar.
 
 ---
 
-### Fluxo de uso do Drive Sync
+## Backlog de ideias (não implementadas)
 
-1. Clique **"Conectar Drive"** — abre popup do Google para autorizar
-2. Autorize o acesso ao `appDataFolder` (pasta privada do app, invisível no Drive)
-3. Na **primeira conexão**:
-   - Se não há arquivo no Drive → seus dados locais são enviados
-   - Se já há arquivo → app pergunta qual versão usar (Drive ou local)
-4. **Após conectado**: qualquer criação/edição/exclusão dispara sync automático em 3 segundos
-5. **Botão de sync manual**: clique no status "Drive conectado" para forçar sincronização
-6. Em sessões futuras: clique "Reconectar Drive" (não há popup se você já autorizou antes)
+Em ordem aproximada de valor:
 
-### Dados armazenados no Drive
+1. **UI de restauração de snapshots** — o Drive guarda 7 snapshots diários,
+   mas restaurar hoje é manual. Uma telinha "restaurar backup de <data>"
+   fecharia o ciclo.
+2. **Auto-concluir ocorrência** quando todas as subtarefas do dia forem
+   marcadas (decidido não fazer por ora: mudança de estado automática pode
+   surpreender — revisitar se o Pedro pedir).
+3. **Fusão de status** — 8 status é muito ("Ativo" × "Em andamento" é fuzzy).
+   Exigiria migração de dados; colunas recolhíveis já atenuam.
+4. **Edição de ocorrência individual** (exceções na série: mudar horário só
+   de um dia, etc.).
+5. **Push notification real** — exige backend (Web Push/FCM); hoje o caminho
+   é o .ics.
+6. **Entrada rápida por texto** ("reunião amanhã 10h #Trabalho").
 
-Arquivo `task-manager-data.json` no `appDataFolder` (privado, invisível ao usuário):
+## Avisos para quem for mexer no código
 
-```json
-{
-  "schemaVersion": 1,
-  "updatedAt": "2026-06-29T12:00:00.000Z",
-  "deviceId": "uuid-do-dispositivo",
-  "items": [...]
-}
-```
-
-### Resolução de conflito
-
-Se tanto o Drive quanto o dispositivo local têm dados modificados desde a última sincronização, o app exibe um modal com:
-- **Usar dados do Drive** — X itens, data/hora da última modificação
-- **Manter dados locais** — Y itens, data/hora da última modificação
-- **Cancelar** — continua sem sincronizar
-
----
-
-## Outras evoluções possíveis
-
-### Notificações push (Fase 3)
-
-Usar a **Web Push API** + Service Worker para enviar lembretes de tarefas com hora definida. Requer backend mínimo para enviar as notificações (ou Firebase Cloud Messaging).
-
-### Edição de ocorrência individual
-
-Atualmente editar um item recorrente altera toda a série. Uma melhoria seria permitir editar apenas uma ocorrência específica — criando uma "exceção" salva no item-pai.
-
-### Exportação para Google Calendar
-
-Exportar itens com data/hora para o Google Calendar via API, usando o mesmo fluxo OAuth da integração com Drive.
+- **Service worker:** ao mudar JS/CSS, bump no `CACHE_NAME` + arquivos novos
+  na lista `ARQUIVOS`. As buscas do SW usam `cache: 'no-cache'` de propósito
+  (sem isso o cache HTTP heurístico segura versão velha — bug real já vivido).
+- **Datas são locais** (`hoje()` em `dateUtils.js`). Nunca usar
+  `toISOString().slice(0,10)` para "hoje" — fuso é UTC-3.
+- **Campos novos no item:** adicionar em `defaults()` E `migrar()` no `db.js`.
+- **Drive:** não mexer em `config.js` / `googleAuth.js` sem necessidade; o
+  sync roda em cima de `onAfterSave` com debounce de 3s. Snapshots
+  (`snapshotDiario`) são fire-and-forget e nunca podem lançar erro.
 
 ---
 
-> Para rodar localmente: `cd task-manager-pwa && python3 -m http.server 8787` → `http://localhost:8787/`
-> GitHub Pages: `https://pedrolapar-dot.github.io/task-manager-pwa/`
+## Configuração do Google Drive Sync (referência)
+
+Já está configurado e funcionando. Se um dia precisar refazer:
+
+1. [console.cloud.google.com](https://console.cloud.google.com/) → projeto →
+   ativar **Google Drive API** → Credenciais → **ID do cliente OAuth 2.0**
+   (Aplicativo da Web).
+2. Origens JavaScript autorizadas: `http://localhost:8787` e
+   `https://pedrolapar-dot.github.io`.
+3. Colar o Client ID em `js/config.js` (`GOOGLE_CLIENT_ID`).
+4. Escopo usado: `drive.appdata` (pasta privada do app). Arquivo principal:
+   `task-manager-data.json`; snapshots: `task-manager-snapshot-*.json`.
+5. Fluxo: "Conectar Drive" → autorizar → primeira conexão pergunta qual versão
+   usar se houver dados dos dois lados; depois, sync automático 3s após
+   qualquer alteração.
