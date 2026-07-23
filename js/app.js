@@ -404,7 +404,7 @@ function setupBackup() {
 
 function exportarAgendaICS() {
   const n = baixarAgendaICS(db.getAll());
-  if (n === 0) toast('Nenhum item com data para exportar.', 'erro');
+  if (n === 0) toast('Nenhum item marcado para notificar. Ao editar um item na Gestão, ligue "Notificar".', 'erro');
   else toast(`${n} ${n === 1 ? 'evento exportado' : 'eventos exportados'} — abra o arquivo para adicionar ao calendário.`);
 }
 

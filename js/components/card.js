@@ -94,6 +94,11 @@ export function renderCard(item, { showMenu = true, compact = false } = {}) {
               ${formatarDataCurta(item.prazo)}
             </span>
           ` : ''}
+          ${item.notificar ? `
+            <span class="card-desc-ind card-notif-ind" title="Entra na exportação do calendário">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </span>
+          ` : ''}
           ${item.descricao ? `
             <span class="card-desc-ind" title="Tem descrição">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>

@@ -902,6 +902,7 @@ mark {
 
 /* Indicador de descrição no card */
 .card-desc-ind { display: inline-flex; align-items: center; color: var(--text-muted); }
+.card-notif-ind { color: var(--prio-media); }
 
 /* =====================================================
    MODAL DE DETALHES (somente leitura)

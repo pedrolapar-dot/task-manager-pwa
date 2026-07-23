@@ -107,11 +107,12 @@ export function baixarICSItem(item) {
   return true;
 }
 
-// Baixa a agenda inteira (itens com data e ainda em aberto). Retorna quantos.
+// Baixa a agenda (itens MARCADOS como "notificar", com data e em aberto).
+// A escolha é por item — nem tudo no app deve virar notificação. Retorna quantos.
 export function baixarAgendaICS(items) {
   const abertos = ['backlog', 'ativo', 'em_andamento', 'aguardando', 'pausado'];
   const eventos = items
-    .filter(i => i.data && abertos.includes(i.status))
+    .filter(i => i.notificar && i.data && abertos.includes(i.status))
     .map(eventoICS)
     .filter(Boolean);
   if (eventos.length === 0) return 0;

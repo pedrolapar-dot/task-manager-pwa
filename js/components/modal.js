@@ -107,6 +107,7 @@ function lerFormulario() {
     prazo:       get('input-prazo').value || null,
     prioridade:  get('input-prioridade').value,
     status:      get('input-status').value,
+    notificar:   get('input-notificar').checked,
     tags,
     subtarefas:  [..._subtarefas],
     recorrente,
@@ -243,6 +244,7 @@ function renderForm(item, defaults = {}, { ocorrencia = null } = {}) {
   const tags      = item ? val(item, 'tags', []).join(', ') : '';
   const rec       = item ? val(item, 'recorrente', false) : false;
   const recObj    = item ? val(item, 'recorrencia', null) : null;
+  const notificar = item ? val(item, 'notificar', false) : false;
 
   const DIAS_CURTOS_LABEL = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
 
@@ -309,6 +311,11 @@ function renderForm(item, defaults = {}, { ocorrencia = null } = {}) {
             <label for="input-hora-fim">Fim</label>
             <input id="input-hora-fim" type="time" value="${horaF}">
           </div>
+        </div>
+
+        <div class="form-check">
+          <input type="checkbox" id="input-notificar" ${notificar ? 'checked' : ''}>
+          <label for="input-notificar">Notificar — incluir na exportação do calendário</label>
         </div>
 
         <div class="form-group">

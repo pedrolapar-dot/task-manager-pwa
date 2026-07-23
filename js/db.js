@@ -20,6 +20,7 @@ function defaults(dados) {
     prioridade: 'media',
     status: 'backlog',
     tags: [],
+    notificar: false,
     subtarefas: [],
     subtarefasPorDia: {},
     recorrente: false,
@@ -45,6 +46,7 @@ function normalizarTags(tags) {
 
 function migrar(i) {
   return {
+    notificar: false,
     subtarefas: [],
     subtarefasPorDia: {},
     recorrencia: null,
