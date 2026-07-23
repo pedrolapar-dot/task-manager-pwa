@@ -980,6 +980,114 @@ mark {
   font-size: .7rem; color: var(--text-muted); line-height: 1.5; margin-top: 6px;
 }
 
+/* Reordenar subtarefas (editor) */
+.sub-move { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.btn-sub-move {
+  width: 20px; height: 20px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); transition: background .1s, color .1s;
+}
+.btn-sub-move:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.btn-sub-move:disabled { opacity: .25; cursor: default; }
+
+/* =====================================================
+   CHECK RÁPIDO NO CARD (fora da Gestão)
+   ===================================================== */
+.card-check {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border-light);
+  display: flex; align-items: center; justify-content: center;
+  color: transparent; transition: border-color .12s, background .12s, color .12s;
+  position: relative; z-index: 1;
+}
+.card-check:hover { border-color: var(--tipo-feriado); }
+.card-check-feito {
+  background: var(--tipo-feriado); border-color: var(--tipo-feriado); color: #fff;
+}
+.card-compact .card-check { width: 19px; height: 19px; }
+
+/* Próxima ocorrência (cards recorrentes na Gestão) */
+.card-prox { color: var(--accent); }
+.card-prox svg { color: var(--accent); opacity: .8; }
+
+/* =====================================================
+   DIA — atrasadas, linha do agora, chips
+   ===================================================== */
+.section-label-atrasadas { color: var(--prio-urgente); }
+.hora-atrasada { color: var(--prio-urgente); font-weight: 700; }
+
+.now-line {
+  display: flex; align-items: center; gap: 10px;
+  margin: 2px 0 10px;
+}
+.now-line-hora {
+  min-width: 42px; text-align: right; flex-shrink: 0;
+  font-size: .68rem; font-weight: 800; color: var(--prio-urgente);
+}
+.now-line-traco {
+  flex: 1; height: 2px; border-radius: 1px;
+  background: var(--prio-urgente); opacity: .8; position: relative;
+}
+.now-line-traco::before {
+  content: ''; position: absolute; left: -1px; top: -3px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--prio-urgente);
+}
+
+.timeline-row-atual .card { border-color: var(--accent); }
+.chip-agora, .chip-proxima {
+  display: inline-block; margin-top: 4px;
+  font-size: .56rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .5px; padding: 1px 6px; border-radius: 4px;
+}
+.chip-agora    { background: var(--accent); color: #fff; }
+.chip-proxima  { background: var(--accent-dim); color: var(--accent); }
+
+/* =====================================================
+   SEMANA — dias vazios compactos (mobile)
+   ===================================================== */
+@media (max-width: 767px) {
+  .week-day-sem-itens .week-day-body { display: none; }
+  .week-day-sem-itens .week-day-header {
+    border-bottom: none; padding: 7px 14px; opacity: .5;
+  }
+}
+
+/* =====================================================
+   KANBAN — arquivar concluídos
+   ===================================================== */
+.kanban-col-header-right { display: flex; align-items: center; gap: 6px; }
+.btn-arquivar-col {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); transition: background .1s, color .1s;
+}
+.btn-arquivar-col:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* =====================================================
+   DETALHES — histórico/sequência e calendário
+   ===================================================== */
+.detail-historico { margin-top: 14px; }
+.detail-historico-linha { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hist-dots { display: inline-flex; gap: 5px; }
+.hist-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--bg-hover); border: 1px solid var(--border-light);
+}
+.hist-dot-ok { background: var(--tipo-feriado); border-color: var(--tipo-feriado); }
+.hist-streak { font-size: .75rem; color: var(--text-muted); font-weight: 600; }
+.hist-streak-on { color: var(--tipo-feriado); }
+
+.btn-add-cal {
+  margin-top: 14px; width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 16px; border-radius: var(--radius-sm);
+  background: var(--bg-hover); color: var(--text-secondary);
+  border: 1px solid var(--border); font-size: .8rem; font-weight: 600;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.btn-add-cal:hover { background: var(--border-light); color: var(--text-primary); }
+
 .btn-ocorrencia {
   margin-top: 14px; width: 100%;
   display: flex; align-items: center; justify-content: center; gap: 8px;

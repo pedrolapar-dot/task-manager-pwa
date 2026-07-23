@@ -1,6 +1,7 @@
 import { db } from '../db.js';
 import { escapeHtml, TIPO_LABEL, PRIO_LABEL, STATUS_LABEL } from './card.js';
-import { formatarData, formatarDiaSemana, hoje } from '../dateUtils.js';
+import { formatarData, formatarDiaSemana, formatarDataCurta, hoje, addDias, expandirRecorrencia } from '../dateUtils.js';
+import { baixarICSItem } from '../ics.js';
 
 // Modal de detalhes (somente leitura) — usado fora da aba Gestão.
 // Única interação permitida: marcar/desmarcar subtarefas e, em itens
@@ -62,6 +63,14 @@ function renderDetalhe(itemId, ocorrencia) {
   });
 
   // Ocorrência de item recorrente: concluir/reabrir só existe por dia
+  const calBtn = modal.querySelector('#btn-add-calendario');
+  if (calBtn) {
+    calBtn.addEventListener('click', () => {
+      const orig = db.getById(itemId);
+      if (orig) baixarICSItem(orig);
+    });
+  }
+
   const occBtn = modal.querySelector('#btn-toggle-ocorrencia');
   if (occBtn) {
     occBtn.addEventListener('click', () => {
@@ -97,6 +106,40 @@ function infoRow(icon, label, valorHtml, extraClass = '') {
       <span class="detail-row-valor">${valorHtml}</span>
     </div>
   `;
+}
+
+// Histórico de um item recorrente: últimas ocorrências (até hoje) e sequência.
+// Uma ocorrência conta como "feita" se foi concluída ou se todas as
+// subtarefas daquele dia foram marcadas.
+function calcularHistorico(item) {
+  if (!item.recorrente) return null;
+  const hj = hoje();
+  const ocorrencias = expandirRecorrencia(item, addDias(hj, -84), hj);
+  if (ocorrencias.length === 0) return null;
+
+  const subs = item.subtarefas || [];
+  const feita = (d) => {
+    if ((item.ocorrenciasConcluidas || []).includes(d)) return true;
+    if (subs.length > 0) {
+      const ids = (item.subtarefasPorDia || {})[d] || [];
+      return subs.every(s => ids.includes(s.id));
+    }
+    return false;
+  };
+
+  const datas   = ocorrencias.map(o => o._dataOcorrencia);
+  const ultimas = datas.slice(-5).map(d => ({ d, ok: feita(d) }));
+
+  let streak = 0;
+  const rev = [...datas].reverse();
+  let i = 0;
+  if (rev[0] === hj && !feita(hj)) i = 1; // hoje ainda pendente não quebra a sequência
+  for (; i < rev.length; i++) {
+    if (feita(rev[i])) streak++;
+    else break;
+  }
+
+  return { ultimas, streak };
 }
 
 function descreverRecorrencia(item) {
@@ -146,6 +189,8 @@ function html(item, ocorrencia) {
 
   const subFeitas = subtarefas.filter(subConcluida).length;
   const subPct    = subTotal > 0 ? Math.round((subFeitas / subTotal) * 100) : 0;
+
+  const historico = calcularHistorico(item);
 
   return `
     <div class="modal-inner detail-inner">
@@ -208,11 +253,34 @@ function html(item, ocorrencia) {
         </div>
       ` : ''}
 
+      ${historico ? `
+        <div class="detail-historico">
+          <div class="detail-section-label">Histórico</div>
+          <div class="detail-historico-linha">
+            <span class="hist-dots">
+              ${historico.ultimas.map(u => `<span class="hist-dot${u.ok ? ' hist-dot-ok' : ''}" title="${formatarDataCurta(u.d)}${u.ok ? ' · feita' : ' · não feita'}"></span>`).join('')}
+            </span>
+            <span class="hist-streak${historico.streak >= 2 ? ' hist-streak-on' : ''}">
+              ${historico.streak > 0
+                ? `Sequência: ${historico.streak} seguida${historico.streak !== 1 ? 's' : ''}${historico.streak >= 2 ? ' 🔥' : ''}`
+                : 'Sem sequência ainda'}
+            </span>
+          </div>
+        </div>
+      ` : ''}
+
       ${isVirtual ? `
         <button type="button" class="btn-ocorrencia${occConcluida ? ' btn-ocorrencia-feita' : ''}" id="btn-toggle-ocorrencia">
           ${occConcluida
             ? `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Ocorrência concluída · toque para reabrir`
             : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg> Concluir esta ocorrência`}
+        </button>
+      ` : ''}
+
+      ${item.data ? `
+        <button type="button" class="btn-add-cal" id="btn-add-calendario">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+          Adicionar ao calendário${item.recorrente ? ' (série toda)' : ''}
         </button>
       ` : ''}
 

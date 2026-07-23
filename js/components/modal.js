@@ -133,6 +133,14 @@ function renderSubtarefas() {
           ? '<span class="subtarefa-bullet"></span>'
           : `<input type="checkbox" class="subtarefa-check" id="sub-${i}" data-idx="${i}" ${s.concluida ? 'checked' : ''}>`}
         <label ${ehRecorrente ? '' : `for="sub-${i}"`} class="subtarefa-label${!ehRecorrente && s.concluida ? ' riscado' : ''}">${escapeHtml(s.titulo)}</label>
+        <span class="sub-move">
+          <button type="button" class="btn-sub-move" data-move="-1" data-idx="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Mover para cima">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+          </button>
+          <button type="button" class="btn-sub-move" data-move="1" data-idx="${i}" ${i === _subtarefas.length - 1 ? 'disabled' : ''} aria-label="Mover para baixo">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </span>
         <button type="button" class="btn-sub-del" data-idx="${i}" aria-label="Remover subtarefa">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -154,6 +162,17 @@ function renderSubtarefas() {
   list.querySelectorAll('.btn-sub-del').forEach(btn => {
     btn.addEventListener('click', () => {
       _subtarefas.splice(parseInt(btn.dataset.idx), 1);
+      renderSubtarefas();
+    });
+  });
+
+  list.querySelectorAll('.btn-sub-move').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i   = parseInt(btn.dataset.idx);
+      const dir = parseInt(btn.dataset.move);
+      const j   = i + dir;
+      if (j < 0 || j >= _subtarefas.length) return;
+      [_subtarefas[i], _subtarefas[j]] = [_subtarefas[j], _subtarefas[i]];
       renderSubtarefas();
     });
   });

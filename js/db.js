@@ -82,6 +82,22 @@ export const db = {
     return _items.filter(i => i.recorrente);
   },
 
+  // Itens não recorrentes com data (ou prazo) já passada e ainda em aberto.
+  // 'pausado' fica de fora: é espera intencional, não atraso.
+  getAtrasadas(hojeStr) {
+    const emAberto = ['backlog', 'ativo', 'em_andamento', 'aguardando'];
+    return _items
+      .filter(i =>
+        !i.recorrente &&
+        emAberto.includes(i.status) &&
+        ((i.data && i.data < hojeStr) || (!i.data && i.prazo && i.prazo < hojeStr))
+      )
+      .sort((a, b) => {
+        const da = a.data || a.prazo, db2 = b.data || b.prazo;
+        return da < db2 ? -1 : da > db2 ? 1 : 0;
+      });
+  },
+
   getBySemana(inicio, fim) {
     return _items.filter(i => {
       if (i.recorrente) return false;

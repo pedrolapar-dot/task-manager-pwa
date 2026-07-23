@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { hoje, proximaOcorrencia } from '../dateUtils.js';
 import { ordenarKanban } from '../sortUtils.js';
 import { renderCard, TIPO_LABEL, PRIO_LABEL, escapeHtml } from '../components/card.js';
 
@@ -16,7 +17,7 @@ const COLUNAS = [
 const STATUS_LABEL = Object.fromEntries(COLUNAS.map(c => [c.id, c.label]));
 
 export function render(container, state, callbacks = {}) {
-  const { onStatusChange, onExport, onImport } = callbacks;
+  const { onStatusChange, onExport, onImport, onExportICS, onArquivarConcluidos } = callbacks;
   const f = state.filtrosKanban;
 
   // Coleta todas as tags únicas dos itens
@@ -32,6 +33,10 @@ export function render(container, state, callbacks = {}) {
   );
 
   const filtroAtivo = !!(f.tipo || f.prioridade || f.tag || f.busca);
+
+  // Recorrentes mostram (e ordenam por) a próxima ocorrência, não a data original
+  const hj = hoje();
+  items = items.map(i => i.recorrente ? { ...i, _proxOcorrencia: proximaOcorrencia(i, hj) } : i);
 
   const porStatus = {};
   COLUNAS.forEach(c => { porStatus[c.id] = []; });
@@ -92,6 +97,10 @@ export function render(container, state, callbacks = {}) {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span>Importar</span>
             </button>
+            <button class="btn-backup" id="kb-ics" title="Exportar agenda para o calendário (.ics)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+              <span>Calendário</span>
+            </button>
           </div>
         </div>
       </div>
@@ -114,7 +123,14 @@ export function render(container, state, callbacks = {}) {
                     <span class="kanban-col-dot"></span>
                     <span class="kanban-col-titulo">${col.label}</span>
                   </div>
-                  <span class="kanban-col-count">${colItems.length}</span>
+                  <div class="kanban-col-header-right">
+                    ${col.id === 'concluido' && colItems.length > 0 ? `
+                      <button class="btn-arquivar-col" id="btn-arquivar-concluidos" title="Arquivar todos os concluídos">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                      </button>
+                    ` : ''}
+                    <span class="kanban-col-count">${colItems.length}</span>
+                  </div>
                 </div>
                 <div class="kanban-col-items" data-status="${col.id}">
                   ${colItems.length > 0
@@ -173,11 +189,15 @@ export function render(container, state, callbacks = {}) {
     });
   }
 
-  // ── Backup ──
+  // ── Backup / calendário / arquivar ──
   const kbExport = document.getElementById('kb-export');
   const kbImport = document.getElementById('kb-import');
+  const kbICS    = document.getElementById('kb-ics');
+  const btnArch  = document.getElementById('btn-arquivar-concluidos');
   if (kbExport && onExport) kbExport.addEventListener('click', onExport);
   if (kbImport && onImport) kbImport.addEventListener('click', onImport);
+  if (kbICS && onExportICS) kbICS.addEventListener('click', onExportICS);
+  if (btnArch && onArquivarConcluidos) btnArch.addEventListener('click', onArquivarConcluidos);
 
   // ── Drag & drop desktop ──
   if (onStatusChange) setupDragDrop(container, onStatusChange);

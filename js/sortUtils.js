@@ -27,12 +27,13 @@ export function ordenarPorHorario(items) {
 
 /**
  * Ordena itens de uma coluna do kanban: data mais próxima primeiro (sem data
- * por último), depois horário, depois prioridade.
+ * por último), depois horário, depois prioridade. Itens recorrentes usam a
+ * próxima ocorrência (_proxOcorrencia) quando disponível.
  */
 export function ordenarKanban(items) {
   return [...items].sort((a, b) => {
-    const da = a.data || a.prazo || '9999-99-99';
-    const db = b.data || b.prazo || '9999-99-99';
+    const da = a._proxOcorrencia || a.data || a.prazo || '9999-99-99';
+    const db = b._proxOcorrencia || b.data || b.prazo || '9999-99-99';
     if (da !== db) return da < db ? -1 : 1;
     const ha = a.horaInicio || '99:99';
     const hb = b.horaInicio || '99:99';

@@ -1,7 +1,13 @@
 import { db } from '../db.js';
-import { formatarDiaSemana, addDias, hoje, expandirRecorrencia } from '../dateUtils.js';
+import { formatarDiaSemana, formatarDataCurta, addDias, hoje, expandirRecorrencia } from '../dateUtils.js';
 import { ordenarPorHorario } from '../sortUtils.js';
 import { renderCard } from '../components/card.js';
+
+function somarMinutos(hm, n) {
+  const [h, m] = hm.split(':').map(Number);
+  const t = h * 60 + m + n;
+  return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+}
 
 export function render(container, state) {
   const { diaSelecionado } = state;
@@ -19,6 +25,49 @@ export function render(container, state) {
     : '';
 
   const ehHoje = diaSelecionado === hoje();
+
+  // Só na visão de hoje: itens de dias anteriores ainda em aberto
+  const atrasadas = ehHoje ? db.getAtrasadas(diaSelecionado) : [];
+
+  // Linha do "agora" + destaques (só em hoje)
+  const agora = ehHoje
+    ? `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
+    : null;
+  const fimDe = (i) => i.horaFim || somarMinutos(i.horaInicio, 60);
+  let idxAtual = -1, idxProxima = -1;
+  if (agora) {
+    comHora.forEach((i, idx) => {
+      if (i.status !== 'concluido' && i.horaInicio <= agora && agora < fimDe(i)) idxAtual = idx;
+      if (idxProxima === -1 && i.horaInicio > agora) idxProxima = idx;
+    });
+  }
+
+  const nowLine = `
+    <div class="now-line">
+      <span class="now-line-hora">${agora}</span>
+      <span class="now-line-traco"></span>
+    </div>
+  `;
+
+  let timelineRows = '';
+  let linhaInserida = false;
+  comHora.forEach((item, idx) => {
+    if (agora && !linhaInserida && item.horaInicio > agora) {
+      timelineRows += nowLine;
+      linhaInserida = true;
+    }
+    timelineRows += `
+      <div class="timeline-row${idx === idxAtual ? ' timeline-row-atual' : ''}">
+        <div class="timeline-hora">
+          ${item.horaInicio}
+          ${idx === idxAtual ? '<span class="chip-agora">agora</span>' : ''}
+          ${idx === idxProxima ? '<span class="chip-proxima">a seguir</span>' : ''}
+        </div>
+        <div class="timeline-card">${renderCard(item, { showMenu: false })}</div>
+      </div>
+    `;
+  });
+  if (agora && !linhaInserida && comHora.length > 0) timelineRows += nowLine;
 
   container.innerHTML = `
     <div class="day-view">
@@ -45,19 +94,26 @@ export function render(container, state) {
       ` : ''}
 
       <div class="day-body">
-        ${todos.length === 0 ? renderVazio() : ''}
-
-        ${comHora.length > 0 ? `
+        ${atrasadas.length > 0 ? `
           <div class="day-section">
-            <div class="section-label">Com horário</div>
+            <div class="section-label section-label-atrasadas">Atrasadas (${atrasadas.length})</div>
             <div class="day-timeline">
-              ${comHora.map(item => `
+              ${atrasadas.map(item => `
                 <div class="timeline-row">
-                  <div class="timeline-hora">${item.horaInicio}</div>
+                  <div class="timeline-hora hora-atrasada">${formatarDataCurta(item.data || item.prazo)}</div>
                   <div class="timeline-card">${renderCard(item, { showMenu: false })}</div>
                 </div>
               `).join('')}
             </div>
+          </div>
+        ` : ''}
+
+        ${todos.length === 0 && atrasadas.length === 0 ? renderVazio() : ''}
+
+        ${comHora.length > 0 ? `
+          <div class="day-section">
+            <div class="section-label">Com horário</div>
+            <div class="day-timeline">${timelineRows}</div>
           </div>
         ` : ''}
 

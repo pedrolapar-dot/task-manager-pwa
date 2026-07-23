@@ -177,3 +177,10 @@ export function expandirRecorrencia(item, inicio, fim) {
     status: concluidas.includes(d) ? 'concluido' : item.status,
   }));
 }
+
+// Próxima ocorrência de um item recorrente a partir de uma data (inclusive).
+// Retorna 'YYYY-MM-DD' ou null se não houver nos próximos ~3 meses.
+export function proximaOcorrencia(item, aPartirDe) {
+  const ocs = expandirRecorrencia(item, aPartirDe, addDias(aPartirDe, 92));
+  return ocs.length ? ocs[0]._dataOcorrencia : null;
+}

@@ -51,8 +51,13 @@ export async function enviar(payload, fileId = null) {
     return fileId;
   }
 
-  // Cria arquivo novo com metadados (multipart)
-  const meta = JSON.stringify({ name: DRIVE_FILE_NAME, parents: ['appDataFolder'] });
+  // Cria arquivo novo no appDataFolder
+  return criarNoAppData(DRIVE_FILE_NAME, body, h);
+}
+
+// Cria um arquivo com metadados (multipart) no appDataFolder. Retorna o id.
+async function criarNoAppData(nome, body, headers) {
+  const meta = JSON.stringify({ name: nome, parents: ['appDataFolder'] });
   const sep  = 'tm_pwa_boundary';
   const multi = [
     `--${sep}`,
@@ -68,10 +73,56 @@ export async function enviar(payload, fileId = null) {
 
   const resp = await fetch(`${UPLOAD_API}?uploadType=multipart`, {
     method:  'POST',
-    headers: { ...h, 'Content-Type': `multipart/related; boundary="${sep}"` },
+    headers: { ...headers, 'Content-Type': `multipart/related; boundary="${sep}"` },
     body:    multi,
   });
   if (!resp.ok) throw new Error(`Drive criar: HTTP ${resp.status}`);
   const criado = await resp.json();
   return criado.id;
+}
+
+// ─── Snapshots diários (cópias de segurança versionadas) ─────────────────────
+// Guarda 1 cópia por dia no appDataFolder e mantém só as últimas SNAP_MAX.
+// Nunca lança erro: snapshot é seguro extra, não pode quebrar o sync.
+
+const SNAP_PREFIX = 'task-manager-snapshot-';
+const SNAP_MAX    = 7;
+
+export async function snapshotDiario(payload) {
+  try {
+    const d = new Date();
+    const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const feitoHoje = localStorage.getItem('tmw_drive_snapshot_date');
+    if (feitoHoje === hoje) return;
+
+    const h = await authHeaders();
+
+    // Lista snapshots existentes
+    const q    = encodeURIComponent(`name contains '${SNAP_PREFIX}'`);
+    const url  = `${FILES_API}?spaces=appDataFolder&q=${q}&fields=files(id,name)&pageSize=100`;
+    const resp = await fetch(url, { headers: h });
+    if (!resp.ok) return;
+    const snaps = ((await resp.json()).files || [])
+      .filter(f => f.name.startsWith(SNAP_PREFIX))
+      .sort((a, b) => (a.name < b.name ? -1 : 1));
+
+    // Cria o de hoje se ainda não existe (pode ter sido criado por outro aparelho)
+    const nomeHoje = `${SNAP_PREFIX}${hoje}.json`;
+    if (!snaps.find(f => f.name === nomeHoje)) {
+      await criarNoAppData(nomeHoje, JSON.stringify(payload), h);
+      snaps.push({ id: null, name: nomeHoje });
+    }
+
+    // Remove os mais antigos além do limite
+    while (snaps.length > SNAP_MAX) {
+      const antigo = snaps.shift();
+      if (antigo.id) {
+        await fetch(`${FILES_API}/${antigo.id}`, { method: 'DELETE', headers: h }).catch(() => {});
+      }
+    }
+
+    localStorage.setItem('tmw_drive_snapshot_date', hoje);
+  } catch {
+    // silencioso de propósito
+  }
 }

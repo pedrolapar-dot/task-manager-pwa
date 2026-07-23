@@ -9,7 +9,8 @@ import * as monthView  from './views/monthView.js';
 import * as kanbanView from './views/kanbanView.js';
 import * as searchView from './views/searchView.js';
 import { isDriveEnabled, initAuth, requestToken } from './googleAuth.js';
-import { baixar, enviar } from './driveSync.js';
+import { baixar, enviar, snapshotDiario } from './driveSync.js';
+import { baixarAgendaICS } from './ics.js';
 
 // ─── Estado de UI ─────────────────────────────────────────────────────────────
 const state = {
@@ -38,6 +39,16 @@ document.addEventListener('DOMContentLoaded', () => {
   renderViewAtual();
   registrarSW();
   setupDrive();
+
+  // Aba Dia (em "hoje"): re-renderiza a cada minuto para a linha do "agora"
+  // e os destaques acompanharem o relógio
+  setInterval(() => {
+    const modalAberto = !document.getElementById('modal-overlay').classList.contains('hidden');
+    if (state.abaAtiva === 'dia' && state.busca.trim().length < 2 &&
+        state.diaSelecionado === hoje() && !modalAberto && !_popupEl) {
+      renderViewAtual();
+    }
+  }, 60000);
 });
 
 // ─── Renderização central ─────────────────────────────────────────────────────
@@ -104,6 +115,19 @@ function renderViewAtual() {
         },
         onExport: exportar,
         onImport: () => document.getElementById('import-file-input').click(),
+        onExportICS: exportarAgendaICS,
+        onArquivarConcluidos: () => {
+          const concluidos = db.filter({ status: 'concluido' });
+          if (concluidos.length === 0) return;
+          confirmar(
+            `Arquivar <strong>${concluidos.length}</strong> ${concluidos.length === 1 ? 'item concluído' : 'itens concluídos'}? Eles continuam na coluna Arquivado.`,
+            () => {
+              concluidos.forEach(i => db.update(i.id, { status: 'arquivado' }));
+              renderViewAtual();
+              toast(`${concluidos.length} ${concluidos.length === 1 ? 'item arquivado' : 'itens arquivados'}.`);
+            }
+          );
+        },
       });
       break;
   }
@@ -184,6 +208,29 @@ function setupCardEvents() {
       const ocorrencia = card ? (card.dataset.ocorrencia || null) : null;
       abrirMenuCard(btn, id, ocorrencia);
     }
+
+    // Check rápido no card (fora da Gestão): conclui/reabre sem abrir nada
+    if (action === 'quick-check') {
+      const card       = btn.closest('.card');
+      const ocorrencia = card ? (card.dataset.ocorrencia || null) : null;
+      const item       = db.getById(id);
+      if (!item) return;
+
+      if (ocorrencia) {
+        const concluidas = [...(item.ocorrenciasConcluidas || [])];
+        const i = concluidas.indexOf(ocorrencia);
+        if (i >= 0) { concluidas.splice(i, 1); toast('Ocorrência reaberta.'); }
+        else        { concluidas.push(ocorrencia); toast('Ocorrência concluída.'); }
+        db.update(id, { ocorrenciasConcluidas: concluidas });
+      } else if (item.status === 'concluido') {
+        db.update(id, { status: 'ativo' });
+        toast('Item reaberto.');
+      } else {
+        db.update(id, { status: 'concluido' });
+        toast('Item concluído.');
+      }
+      renderViewAtual();
+    }
   });
 
   // Clicar no card (fora de qualquer [data-action]):
@@ -221,6 +268,27 @@ function abrirMenuCard(anchor, id, ocorrencia = null) {
   menu.querySelector('[data-action="mover"]').addEventListener('click', () => {
     fecharPopup();
     abrirMoverMenu(anchor, id);
+  });
+
+  menu.querySelector('[data-action="duplicar"]').addEventListener('click', () => {
+    fecharPopup();
+    const orig = db.getById(id);
+    if (!orig) return;
+    const now = new Date().toISOString();
+    const { id: _id, criadoEm, atualizadoEm, subtarefas, titulo, ...resto } = orig;
+    const novo = db.create({
+      ...resto,
+      titulo: `${titulo} (cópia)`,
+      subtarefas: (subtarefas || []).map(s => ({
+        ...s, id: crypto.randomUUID(), concluida: false, criadoEm: now, atualizadoEm: now,
+      })),
+      subtarefasPorDia: {},
+      ocorrenciasConcluidas: [],
+      ocorrenciasIgnoradas: [],
+    });
+    renderViewAtual();
+    toast('Item duplicado.');
+    openModal(novo.id);
   });
 
   menu.querySelector('[data-action="concluir"]').addEventListener('click', () => {
@@ -331,6 +399,13 @@ function setupBackup() {
     document.getElementById('import-file-input').click();
   });
   document.getElementById('import-file-input').addEventListener('change', importar);
+  document.getElementById('btn-ics')?.addEventListener('click', exportarAgendaICS);
+}
+
+function exportarAgendaICS() {
+  const n = baixarAgendaICS(db.getAll());
+  if (n === 0) toast('Nenhum item com data para exportar.', 'erro');
+  else toast(`${n} ${n === 1 ? 'evento exportado' : 'eventos exportados'} — abra o arquivo para adicionar ao calendário.`);
 }
 
 function exportar() {
@@ -544,6 +619,9 @@ async function sincronizarDrive() {
 
     _dr.sincronizando = false;
     _atualizarDriveUI('sincronizado');
+
+    // Cópia de segurança versionada (1x por dia, nunca atrapalha o sync)
+    snapshotDiario(_buildPayload());
   } catch (err) {
     _dr.sincronizando = false;
     _dr.erro = err.message;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'task-manager-pwa-v7';
+const CACHE_NAME = 'task-manager-pwa-v8';
 
 // BASE é o diretório onde o SW está instalado — detectado em runtime.
 // Localmente: '/'   |   GitHub Pages: '/task-manager-pwa/'
@@ -17,6 +17,7 @@ const ARQUIVOS = [
   BASE + 'js/storage.js',
   BASE + 'js/dateUtils.js',
   BASE + 'js/sortUtils.js',
+  BASE + 'js/ics.js',
   BASE + 'js/views/dayView.js',
   BASE + 'js/views/weekView.js',
   BASE + 'js/views/monthView.js',

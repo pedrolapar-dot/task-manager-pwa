@@ -60,7 +60,7 @@ export function render(container, state) {
           const dayItems = porDia[date] || [];
           const ehHoje = isHoje(date);
           return `
-            <div class="week-day${ehHoje ? ' week-day-hoje' : ''}">
+            <div class="week-day${ehHoje ? ' week-day-hoje' : ''}${dayItems.length === 0 ? ' week-day-sem-itens' : ''}">
               <div class="week-day-header">
                 <span class="week-dia-nome">${DIAS_CURTOS[i]}</span>
                 <span class="week-dia-num${ehHoje ? ' hoje-num' : ''}">${formatarDataCurta(date).split('/')[0]}</span>
