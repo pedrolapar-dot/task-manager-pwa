@@ -38,9 +38,12 @@ export function openModal(itemId = null, defaults = {}, { ocorrencia = null } = 
   tipoSel.addEventListener('change', () => toggleHoras(tipoSel.value));
   toggleHoras(tipoSel.value);
 
-  // Recorrência toggle
+  // Recorrência toggle (também re-renderiza subtarefas: recorrente não tem checkbox)
   const recCheck = document.getElementById('input-recorrente');
-  recCheck.addEventListener('change', () => toggleRecorrencia(recCheck.checked));
+  recCheck.addEventListener('change', () => {
+    toggleRecorrencia(recCheck.checked);
+    renderSubtarefas();
+  });
   toggleRecorrencia(recCheck.checked);
 
   // Frequência → campos condicionais
@@ -117,18 +120,26 @@ function renderSubtarefas() {
   const list = document.getElementById('subtarefas-list');
   if (!list) return;
 
+  // Item recorrente: aqui se edita só a ESTRUTURA do checklist —
+  // marcar/desmarcar é por dia, na visualização do item (fora da Gestão)
+  const ehRecorrente = !!document.getElementById('input-recorrente')?.checked;
+
   if (_subtarefas.length === 0) {
     list.innerHTML = '<p class="subtarefa-vazia">Nenhuma subtarefa ainda.</p>';
   } else {
     list.innerHTML = _subtarefas.map((s, i) => `
       <div class="subtarefa-item">
-        <input type="checkbox" class="subtarefa-check" id="sub-${i}" data-idx="${i}" ${s.concluida ? 'checked' : ''}>
-        <label for="sub-${i}" class="subtarefa-label${s.concluida ? ' riscado' : ''}">${escapeHtml(s.titulo)}</label>
+        ${ehRecorrente
+          ? '<span class="subtarefa-bullet"></span>'
+          : `<input type="checkbox" class="subtarefa-check" id="sub-${i}" data-idx="${i}" ${s.concluida ? 'checked' : ''}>`}
+        <label ${ehRecorrente ? '' : `for="sub-${i}"`} class="subtarefa-label${!ehRecorrente && s.concluida ? ' riscado' : ''}">${escapeHtml(s.titulo)}</label>
         <button type="button" class="btn-sub-del" data-idx="${i}" aria-label="Remover subtarefa">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-    `).join('');
+    `).join('') + (ehRecorrente
+      ? '<p class="subtarefa-hint-rec">Item repetido: as subtarefas são marcadas por dia, abrindo o item na aba Dia, Semana ou Mês.</p>'
+      : '');
   }
 
   list.querySelectorAll('.subtarefa-check').forEach(cb => {

@@ -966,6 +966,19 @@ mark {
 .detail-progress-fill.completo { background: var(--tipo-feriado); }
 .detail-sub-list { display: flex; flex-direction: column; gap: 5px; }
 .detail-sub-item { cursor: pointer; }
+.detail-sub-item-plain { cursor: default; }
+.detail-sub-nota {
+  margin-top: 10px; font-size: .72rem; color: var(--text-muted); line-height: 1.5;
+}
+
+/* Marcador de subtarefa sem checkbox (estrutura de item recorrente) */
+.subtarefa-bullet {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-muted); flex-shrink: 0; margin: 0 5px;
+}
+.subtarefa-hint-rec {
+  font-size: .7rem; color: var(--text-muted); line-height: 1.5; margin-top: 6px;
+}
 
 .btn-ocorrencia {
   margin-top: 14px; width: 100%;

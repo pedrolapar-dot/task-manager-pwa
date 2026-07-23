@@ -21,6 +21,7 @@ function defaults(dados) {
     status: 'backlog',
     tags: [],
     subtarefas: [],
+    subtarefasPorDia: {},
     recorrente: false,
     recorrencia: null,
     ocorrenciasConcluidas: [],
@@ -31,17 +32,34 @@ function defaults(dados) {
   };
 }
 
+// Remove espaços e pontos finais acidentais ("Trabalho." → "Trabalho") e duplicatas
+function normalizarTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  const out = [];
+  tags.forEach(t => {
+    const limpa = String(t).trim().replace(/\.+$/, '').trim();
+    if (limpa && !out.includes(limpa)) out.push(limpa);
+  });
+  return out;
+}
+
+function migrar(i) {
+  return {
+    subtarefas: [],
+    subtarefasPorDia: {},
+    recorrencia: null,
+    ocorrenciasConcluidas: [],
+    ocorrenciasIgnoradas: [],
+    ...i,
+    tags: normalizarTags(i.tags),
+  };
+}
+
 export const db = {
   init() {
     _items = storage.load();
-    // Migra itens antigos: adiciona campos novos se ausentes
-    _items = _items.map(i => ({
-      subtarefas: [],
-      recorrencia: null,
-      ocorrenciasConcluidas: [],
-      ocorrenciasIgnoradas: [],
-      ...i,
-    }));
+    // Migra itens antigos: adiciona campos novos se ausentes, normaliza tags
+    _items = _items.map(migrar);
     if (_items.length === 0) {
       _items = criarExemplos();
       storage.save(_items);
@@ -116,6 +134,7 @@ export const db = {
 
   create(dados) {
     const item = defaults(dados);
+    item.tags = normalizarTags(item.tags);
     _items.push(item);
     storage.save(_items);
     _afterSave?.();
@@ -125,6 +144,7 @@ export const db = {
   update(id, dados) {
     const idx = _items.findIndex(i => i.id === id);
     if (idx === -1) return null;
+    if (dados.tags) dados = { ...dados, tags: normalizarTags(dados.tags) };
     _items[idx] = { ..._items[idx], ...dados, atualizadoEm: new Date().toISOString() };
     storage.save(_items);
     _afterSave?.();
@@ -145,13 +165,7 @@ export const db = {
     if (!json || typeof json !== 'object') throw new Error('JSON inválido.');
     if (!json.schemaVersion || !Array.isArray(json.items)) throw new Error('Formato de backup inválido.');
     if (json.schemaVersion !== 1) throw new Error(`Versão de schema não suportada: ${json.schemaVersion}`);
-    _items = json.items.map(i => ({
-      subtarefas: [],
-      recorrencia: null,
-      ocorrenciasConcluidas: [],
-      ocorrenciasIgnoradas: [],
-      ...i,
-    }));
+    _items = json.items.map(migrar);
     storage.save(_items);
     _afterSave?.();
   },

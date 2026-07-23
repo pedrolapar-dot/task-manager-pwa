@@ -1,4 +1,4 @@
-const CACHE_NAME = 'task-manager-pwa-v6';
+const CACHE_NAME = 'task-manager-pwa-v7';
 
 // BASE é o diretório onde o SW está instalado — detectado em runtime.
 // Localmente: '/'   |   GitHub Pages: '/task-manager-pwa/'
@@ -36,7 +36,9 @@ self.addEventListener('install', (event) => {
     (async () => {
       const cache = await caches.open(CACHE_NAME);
       await Promise.all(
-        ARQUIVOS.map(url => cache.add(url).catch(() => {}))
+        ARQUIVOS.map(url =>
+          cache.add(new Request(url, { cache: 'no-cache' })).catch(() => {})
+        )
       );
       await self.skipWaiting();
     })()
@@ -67,7 +69,10 @@ self.addEventListener('fetch', (event) => {
     caches.open(CACHE_NAME).then(async (cache) => {
       const cached = await cache.match(event.request);
 
-      const rede = fetch(event.request)
+      // cache: 'no-cache' força revalidar no servidor (senão o cache HTTP do
+      // navegador pode responder com arquivo velho por heurística e a
+      // atualização nunca chega). No GitHub Pages vira 304 quando não mudou.
+      const rede = fetch(new Request(event.request.url, { cache: 'no-cache' }))
         .then(response => {
           if (response && response.status === 200) {
             cache.put(event.request, response.clone());

@@ -15,6 +15,19 @@ export const STATUS_LABEL = {
   cancelado: 'Cancelado', arquivado: 'Arquivado',
 };
 
+// Em itens recorrentes as subtarefas são marcadas por dia (ocorrência).
+// Retorna null para o item-pai recorrente (sem dia definido → só mostra o total).
+export function contarSubFeitas(item) {
+  const subs = item.subtarefas || [];
+  if (item.recorrente) {
+    const dia = item._dataOcorrencia;
+    if (!dia) return null;
+    const feitas = (item.subtarefasPorDia || {})[dia] || [];
+    return subs.filter(s => feitas.includes(s.id)).length;
+  }
+  return subs.filter(s => s.concluida).length;
+}
+
 export function renderCard(item, { showMenu = true, compact = false } = {}) {
   const hj = hoje();
   const prazoVencido = item.prazo && item.prazo < hj && !['concluido','cancelado','arquivado'].includes(item.status);
@@ -22,7 +35,7 @@ export function renderCard(item, { showMenu = true, compact = false } = {}) {
 
   const subtarefas = item.subtarefas || [];
   const subTotal   = subtarefas.length;
-  const subFeitas  = subtarefas.filter(s => s.concluida).length;
+  const subFeitas  = contarSubFeitas(item);
 
   const ocorrenciaAttr = item._virtual ? `data-ocorrencia="${item._dataOcorrencia}"` : '';
 
@@ -55,9 +68,9 @@ export function renderCard(item, { showMenu = true, compact = false } = {}) {
 
       ${subTotal > 0 || item.prazo || item.tags.length > 0 || item.descricao ? `
         <div class="card-footer">
-          ${subTotal > 0 ? `<span class="card-sub-progress${subFeitas === subTotal ? ' sub-completo' : ''}">
+          ${subTotal > 0 ? `<span class="card-sub-progress${subFeitas === subTotal ? ' sub-completo' : ''}" title="Subtarefas">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            ${subFeitas}/${subTotal}
+            ${subFeitas === null ? subTotal : `${subFeitas}/${subTotal}`}
           </span>` : ''}
           ${item.prazo ? `
             <span class="card-prazo${prazoVencido ? ' prazo-vencido' : ''}${prazoHoje ? ' prazo-hoje' : ''}">

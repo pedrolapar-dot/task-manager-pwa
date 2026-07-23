@@ -33,16 +33,29 @@ function renderDetalhe(itemId, ocorrencia) {
 
   modal.querySelector('#btn-detail-fechar').addEventListener('click', closeDetail);
 
-  // Subtarefas: única edição permitida fora da Gestão
+  // Subtarefas: única edição permitida fora da Gestão.
+  // Itens recorrentes guardam a conclusão POR DIA (subtarefasPorDia);
+  // itens normais usam a flag concluida da própria subtarefa.
   modal.querySelectorAll('.detail-sub-check').forEach(cb => {
     cb.addEventListener('change', () => {
-      const idx  = parseInt(cb.dataset.idx);
-      const orig = db.getById(itemId);
-      if (!orig || !orig.subtarefas?.[idx]) return;
-      const subs = orig.subtarefas.map((s, i) =>
-        i === idx ? { ...s, concluida: cb.checked, atualizadoEm: new Date().toISOString() } : s
-      );
-      db.update(itemId, { subtarefas: subs });
+      const subId = cb.dataset.subid;
+      const orig  = db.getById(itemId);
+      if (!orig) return;
+
+      if (orig.recorrente && ocorrencia) {
+        const mapa  = { ...(orig.subtarefasPorDia || {}) };
+        const doDia = new Set(mapa[ocorrencia] || []);
+        if (cb.checked) doDia.add(subId); else doDia.delete(subId);
+        if (doDia.size > 0) mapa[ocorrencia] = [...doDia];
+        else delete mapa[ocorrencia];
+        db.update(itemId, { subtarefasPorDia: mapa });
+      } else {
+        const subs = (orig.subtarefas || []).map(s =>
+          s.id === subId ? { ...s, concluida: cb.checked, atualizadoEm: new Date().toISOString() } : s
+        );
+        db.update(itemId, { subtarefas: subs });
+      }
+
       _onChange?.();
       renderDetalhe(itemId, ocorrencia);
     });
@@ -123,8 +136,16 @@ function html(item, ocorrencia) {
 
   const subtarefas = item.subtarefas || [];
   const subTotal   = subtarefas.length;
-  const subFeitas  = subtarefas.filter(s => s.concluida).length;
-  const subPct     = subTotal > 0 ? Math.round((subFeitas / subTotal) * 100) : 0;
+
+  // Recorrente: conclusão por dia; normal: flag da subtarefa
+  const feitasDoDia = new Set(isVirtual ? ((item.subtarefasPorDia || {})[ocorrencia] || []) : []);
+  const subConcluida = (s) => item.recorrente ? feitasDoDia.has(s.id) : !!s.concluida;
+
+  // Recorrente aberto sem dia (ex.: pela busca): lista sem checkbox
+  const podeMarcarSubs = !item.recorrente || isVirtual;
+
+  const subFeitas = subtarefas.filter(subConcluida).length;
+  const subPct    = subTotal > 0 ? Math.round((subFeitas / subTotal) * 100) : 0;
 
   return `
     <div class="modal-inner detail-inner">
@@ -161,16 +182,29 @@ function html(item, ocorrencia) {
 
       ${subTotal > 0 ? `
         <div class="detail-subtarefas">
-          <div class="detail-section-label">Subtarefas <span class="detail-sub-count">${subFeitas}/${subTotal}</span></div>
-          <div class="detail-progress"><div class="detail-progress-fill${subFeitas === subTotal ? ' completo' : ''}" style="width:${subPct}%"></div></div>
+          <div class="detail-section-label">
+            Subtarefas${item.recorrente && isVirtual ? ' do dia' : ''}
+            ${podeMarcarSubs ? `<span class="detail-sub-count">${subFeitas}/${subTotal}</span>` : `<span class="detail-sub-count">${subTotal}</span>`}
+          </div>
+          ${podeMarcarSubs ? `
+            <div class="detail-progress"><div class="detail-progress-fill${subFeitas === subTotal ? ' completo' : ''}" style="width:${subPct}%"></div></div>
+          ` : ''}
           <div class="detail-sub-list">
-            ${subtarefas.map((s, i) => `
+            ${subtarefas.map(s => podeMarcarSubs ? `
               <label class="subtarefa-item detail-sub-item">
-                <input type="checkbox" class="subtarefa-check detail-sub-check" data-idx="${i}" ${s.concluida ? 'checked' : ''}>
-                <span class="subtarefa-label${s.concluida ? ' riscado' : ''}">${escapeHtml(s.titulo)}</span>
+                <input type="checkbox" class="subtarefa-check detail-sub-check" data-subid="${s.id}" ${subConcluida(s) ? 'checked' : ''}>
+                <span class="subtarefa-label${subConcluida(s) ? ' riscado' : ''}">${escapeHtml(s.titulo)}</span>
               </label>
+            ` : `
+              <div class="subtarefa-item detail-sub-item detail-sub-item-plain">
+                <span class="subtarefa-bullet"></span>
+                <span class="subtarefa-label">${escapeHtml(s.titulo)}</span>
+              </div>
             `).join('')}
           </div>
+          ${!podeMarcarSubs ? `
+            <p class="detail-sub-nota">Este item se repete: as subtarefas são marcadas por dia, abrindo o item na aba Dia, Semana ou Mês.</p>
+          ` : ''}
         </div>
       ` : ''}
 
