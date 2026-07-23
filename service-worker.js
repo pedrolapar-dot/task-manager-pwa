@@ -1,4 +1,4 @@
-const CACHE_NAME = 'task-manager-pwa-v5';
+const CACHE_NAME = 'task-manager-pwa-v6';
 
 // BASE é o diretório onde o SW está instalado — detectado em runtime.
 // Localmente: '/'   |   GitHub Pages: '/task-manager-pwa/'
@@ -16,6 +16,7 @@ const ARQUIVOS = [
   BASE + 'js/db.js',
   BASE + 'js/storage.js',
   BASE + 'js/dateUtils.js',
+  BASE + 'js/sortUtils.js',
   BASE + 'js/views/dayView.js',
   BASE + 'js/views/weekView.js',
   BASE + 'js/views/monthView.js',
@@ -23,6 +24,7 @@ const ARQUIVOS = [
   BASE + 'js/views/searchView.js',
   BASE + 'js/components/card.js',
   BASE + 'js/components/modal.js',
+  BASE + 'js/components/detailModal.js',
   BASE + 'assets/icons/icon-192.png',
   BASE + 'assets/icons/icon-512.png',
 ];
@@ -52,7 +54,9 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Cache First — serve do cache; atualiza cache em background
+// Fetch: Stale-While-Revalidate — responde do cache na hora e atualiza o
+// cache pela rede em background. Assim, novas versões publicadas no GitHub
+// Pages aparecem no recarregamento seguinte, sem precisar limpar o cache.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
@@ -60,21 +64,29 @@ self.addEventListener('fetch', (event) => {
   if (!url.pathname.startsWith(BASE)) return;
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(event.request);
 
-      return fetch(event.request)
+      const rede = fetch(event.request)
         .then(response => {
-          if (!response || response.status !== 200) return response;
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          if (response && response.status === 200) {
+            cache.put(event.request, response.clone());
+          }
           return response;
         })
-        .catch(() => {
-          if (event.request.mode === 'navigate') {
-            return caches.match(BASE + 'index.html');
-          }
-        });
+        .catch(() => null);
+
+      if (cached) {
+        rede.catch(() => {}); // revalida em background
+        return cached;
+      }
+
+      const response = await rede;
+      if (response) return response;
+      if (event.request.mode === 'navigate') {
+        return cache.match(BASE + 'index.html');
+      }
+      return Response.error();
     })
   );
 });

@@ -106,7 +106,11 @@ export const db = {
       .sort((a, b) => {
         const da = a.data || a.prazo || '9999';
         const db2 = b.data || b.prazo || '9999';
-        return da < db2 ? -1 : da > db2 ? 1 : 0;
+        if (da !== db2) return da < db2 ? -1 : 1;
+        // Mesmo dia: mais cedo primeiro, sem horário por último
+        const ha = a.horaInicio || '99:99';
+        const hb = b.horaInicio || '99:99';
+        return ha.localeCompare(hb);
       });
   },
 

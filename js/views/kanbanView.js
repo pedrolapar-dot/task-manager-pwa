@@ -1,4 +1,5 @@
 import { db } from '../db.js';
+import { ordenarKanban } from '../sortUtils.js';
 import { renderCard, TIPO_LABEL, PRIO_LABEL, escapeHtml } from '../components/card.js';
 
 const COLUNAS = [
@@ -37,6 +38,8 @@ export function render(container, state, callbacks = {}) {
   items.forEach(item => {
     if (porStatus[item.status] !== undefined) porStatus[item.status].push(item);
   });
+  // Colunas ordenadas: data/horário mais próximos primeiro, sem data por último
+  COLUNAS.forEach(c => { porStatus[c.id] = ordenarKanban(porStatus[c.id]); });
 
   const total = db.getAll().length;
 

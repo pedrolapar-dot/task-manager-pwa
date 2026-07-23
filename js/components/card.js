@@ -53,7 +53,7 @@ export function renderCard(item, { showMenu = true, compact = false } = {}) {
         </div>
       ` : ''}
 
-      ${subTotal > 0 || item.prazo || item.tags.length > 0 ? `
+      ${subTotal > 0 || item.prazo || item.tags.length > 0 || item.descricao ? `
         <div class="card-footer">
           ${subTotal > 0 ? `<span class="card-sub-progress${subFeitas === subTotal ? ' sub-completo' : ''}">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -63,6 +63,11 @@ export function renderCard(item, { showMenu = true, compact = false } = {}) {
             <span class="card-prazo${prazoVencido ? ' prazo-vencido' : ''}${prazoHoje ? ' prazo-hoje' : ''}">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               ${formatarDataCurta(item.prazo)}
+            </span>
+          ` : ''}
+          ${item.descricao ? `
+            <span class="card-desc-ind" title="Tem descrição">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
             </span>
           ` : ''}
           ${item.tags.length > 0 ? `

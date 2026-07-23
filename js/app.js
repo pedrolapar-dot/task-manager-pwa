@@ -1,6 +1,7 @@
 import { db, onAfterSave } from './db.js';
 import { hoje, getSemana } from './dateUtils.js';
 import { initModal, openModal } from './components/modal.js';
+import { initDetailModal, openDetailModal } from './components/detailModal.js';
 import { renderCardMenu, renderMoverMenu, escapeHtml } from './components/card.js';
 import * as dayView    from './views/dayView.js';
 import * as weekView   from './views/weekView.js';
@@ -28,6 +29,7 @@ let _buscaTimer = null;
 document.addEventListener('DOMContentLoaded', () => {
   db.init();
   initModal(renderViewAtual);
+  initDetailModal(renderViewAtual);
   setupTabs();
   setupFAB();
   setupCardEvents();
@@ -39,8 +41,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─── Renderização central ─────────────────────────────────────────────────────
+// Criação/edição só acontece na Gestão; fora dela os cards abrem em modo leitura
+function podeEditar() {
+  return state.abaAtiva === 'gestao' && state.busca.trim().length < 2;
+}
+
+function atualizarFAB() {
+  document.getElementById('fab').classList.toggle('fab-hidden', !podeEditar());
+}
+
 function renderViewAtual() {
   fecharPopup();
+  atualizarFAB();
 
   const containers = {
     dia:    document.getElementById('view-dia'),
@@ -116,9 +128,8 @@ function setupTabs() {
 // ─── FAB ──────────────────────────────────────────────────────────────────────
 function setupFAB() {
   document.getElementById('fab').addEventListener('click', () => {
-    const defaults = {};
-    if (state.abaAtiva === 'dia') defaults.data = state.diaSelecionado;
-    openModal(null, defaults);
+    if (!podeEditar()) return;
+    openModal(null, {});
   });
 }
 
@@ -140,6 +151,7 @@ function setupBusca() {
   clear.addEventListener('click', () => {
     input.value = '';
     limparBusca();
+    renderViewAtual();
   });
 }
 
@@ -174,13 +186,15 @@ function setupCardEvents() {
     }
   });
 
-  // Clicar no card (fora de qualquer [data-action]) → abre edição
+  // Clicar no card (fora de qualquer [data-action]):
+  // na Gestão → edição; nas demais views/busca → detalhes (somente leitura)
   main.addEventListener('click', (e) => {
     if (e.target.closest('[data-action]')) return;
     const card = e.target.closest('.card');
     if (card && card.dataset.id) {
       const ocorrencia = card.dataset.ocorrencia || null;
-      openModal(card.dataset.id, {}, { ocorrencia });
+      if (podeEditar()) openModal(card.dataset.id, {}, { ocorrencia });
+      else              openDetailModal(card.dataset.id, { ocorrencia });
     }
   });
 }

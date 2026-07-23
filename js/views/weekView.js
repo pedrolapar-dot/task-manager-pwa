@@ -1,5 +1,6 @@
 import { db } from '../db.js';
-import { getSemana, addDias, formatarDataCurta, semanaLabel, isHoje, expandirRecorrencia } from '../dateUtils.js';
+import { getSemana, addDias, formatarDataCurta, semanaLabel, isHoje, hoje, expandirRecorrencia } from '../dateUtils.js';
+import { ordenarPorHorario } from '../sortUtils.js';
 import { renderCard } from '../components/card.js';
 
 const DIAS_CURTOS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -28,6 +29,11 @@ export function render(container, state) {
     }
   });
 
+  // Dentro de cada dia: mais cedo primeiro, sem horário por último
+  dias.forEach(d => { porDia[d] = ordenarPorHorario(porDia[d]); });
+
+  const ehSemanaAtual = getSemana(hoje()).inicio === inicio;
+
   container.innerHTML = `
     <div class="week-view">
       <div class="view-header">
@@ -39,6 +45,15 @@ export function render(container, state) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
+
+      ${!ehSemanaAtual ? `
+        <div class="hoje-wrap">
+          <button class="btn-hoje" id="btn-semana-atual">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+            Semana atual
+          </button>
+        </div>
+      ` : ''}
 
       <div class="week-grid">
         ${dias.map((date, i) => {
@@ -52,7 +67,7 @@ export function render(container, state) {
               </div>
               <div class="week-day-body">
                 ${dayItems.length > 0
-                  ? dayItems.map(item => renderCard(item, { compact: true })).join('')
+                  ? dayItems.map(item => renderCard(item, { compact: true, showMenu: false })).join('')
                   : '<div class="week-day-vazio"></div>'
                 }
               </div>
@@ -70,6 +85,12 @@ export function render(container, state) {
 
   document.getElementById('btn-next-week').addEventListener('click', () => {
     state.semanaAtual = getSemana(addDias(inicio, 7));
+    render(container, state);
+  });
+
+  const btnAtual = document.getElementById('btn-semana-atual');
+  if (btnAtual) btnAtual.addEventListener('click', () => {
+    state.semanaAtual = getSemana();
     render(container, state);
   });
 }

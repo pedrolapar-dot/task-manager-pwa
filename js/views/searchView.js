@@ -26,7 +26,7 @@ export function render(container, query) {
       </div>
       ${resultados.length > 0 ? `
         <div class="search-results">
-          ${resultados.map(item => renderCard(item)).join('')}
+          ${resultados.map(item => renderCard(item, { showMenu: false })).join('')}
         </div>
       ` : ''}
     </div>
