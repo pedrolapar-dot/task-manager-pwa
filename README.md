@@ -78,9 +78,10 @@ JSON (Exportar/Importar) e o Drive existem pra isso.
 ## Como atualizar o app nos aparelhos
 
 Depois de qualquer `git push`, o GitHub Pages publica sozinho (~1 min).
-Nos aparelhos: **abrir o app → esperar uns segundos → fechar e abrir**.
-O service worker usa stale-while-revalidate com `cache: 'no-cache'`, então a
-versão nova chega no reload seguinte, sem limpar nada.
+Nos aparelhos é **automático**: ao abrir o app (ou voltar pra ele), o service
+worker checa se há versão nova e, se houver, o app se recarrega sozinho em
+poucos segundos (a menos que um modal esteja aberto — aí atualiza na próxima
+abertura). O SW usa stale-while-revalidate com `cache: 'no-cache'`.
 
 Ao mudar arquivos JS/CSS: **dar bump no `CACHE_NAME`** do `service-worker.js`
 e adicionar arquivos novos à lista `ARQUIVOS`.
@@ -139,6 +140,7 @@ no-store` (ou recarregar duas vezes — a primeira revalida, a segunda pega).
 - **Editar item recorrente altera a série inteira** (exceto concluir
   ocorrência e marcar subtarefas, que são por dia).
 - **iOS:** downloads (.json/.ics) abrem a folha de compartilhar em vez de
-  baixar direto — comportamento do iOS.
+  baixar direto — comportamento do iOS. No app instalado, o layout respeita as
+  safe areas (barra de status e barrinha do home) via `env(safe-area-inset-*)`.
 - **Snapshots do Drive não têm UI de restauração** — em caso de desastre, é
   possível restaurar manualmente (os arquivos estão no appDataFolder).

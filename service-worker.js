@@ -1,4 +1,4 @@
-const CACHE_NAME = 'task-manager-pwa-v10';
+const CACHE_NAME = 'task-manager-pwa-v11';
 
 // BASE é o diretório onde o SW está instalado — detectado em runtime.
 // Localmente: '/'   |   GitHub Pages: '/task-manager-pwa/'

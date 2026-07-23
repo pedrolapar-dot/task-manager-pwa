@@ -731,8 +731,30 @@ function _atualizarDriveUI(status) {
 
 // ─── Service Worker ───────────────────────────────────────────────────────────
 function registrarSW() {
-  if ('serviceWorker' in navigator) {
-    // Path relativo — funciona em localhost:8787/ e em /task-manager-pwa/ no GitHub Pages
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
-  }
+  if (!('serviceWorker' in navigator)) return;
+
+  // Path relativo — funciona em localhost:8787/ e em /task-manager-pwa/ no GitHub Pages
+  navigator.serviceWorker.register('./service-worker.js')
+    .then((reg) => {
+      // iOS costuma só "acordar" o app instalado em vez de recarregá-lo;
+      // checar atualização a cada volta ao primeiro plano
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch(() => {});
+
+  // Quando um SW novo assume, recarrega uma vez para rodar a versão nova —
+  // sem isso o app instalado fica na versão antiga até ser fechado de vez.
+  // Guard de jaControlada: no primeiro acesso o claim() também dispara
+  // controllerchange e não queremos recarregar aí.
+  const jaControlada = !!navigator.serviceWorker.controller;
+  let recarregando = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!jaControlada || recarregando) return;
+    const modalAberto = !document.getElementById('modal-overlay').classList.contains('hidden');
+    if (modalAberto) return; // não interromper uma edição; a versão nova entra na próxima abertura
+    recarregando = true;
+    location.reload();
+  });
 }
