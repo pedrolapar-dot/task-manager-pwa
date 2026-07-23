@@ -16,6 +16,15 @@ const COLUNAS = [
 
 const STATUS_LABEL = Object.fromEntries(COLUNAS.map(c => [c.id, c.label]));
 
+// Colunas recolhidas no desktop (persistido). Cancelado/Arquivado começam recolhidas.
+function lerRecolhidas() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem('tmw_kanban_recolhidas') ?? '["cancelado","arquivado"]'));
+  } catch {
+    return new Set(['cancelado', 'arquivado']);
+  }
+}
+
 export function render(container, state, callbacks = {}) {
   const { onStatusChange, onExport, onImport, onExportICS, onArquivarConcluidos } = callbacks;
   const f = state.filtrosKanban;
@@ -78,13 +87,15 @@ export function render(container, state, callbacks = {}) {
         </div>
 
         <div class="kanban-actions">
-          <!-- Seletor de coluna mobile -->
-          <div class="kanban-col-select-wrap">
-            <select id="kanban-col-select" class="filter-select">
-              ${COLUNAS.map(c =>
-                `<option value="${c.id}">${c.label} (${porStatus[c.id].length})</option>`
-              ).join('')}
-            </select>
+          <!-- Seletor de coluna mobile: chips deslizáveis -->
+          <div class="kanban-col-chips" id="kanban-col-chips">
+            ${COLUNAS.map(c => `
+              <button class="kcol-chip" data-col="${c.id}" style="--col-cor: ${c.cor}">
+                <span class="kanban-col-dot"></span>
+                ${c.label}
+                <span class="kcol-chip-count">${porStatus[c.id].length}</span>
+              </button>
+            `).join('')}
           </div>
 
           <!-- Backup: visível sempre; no desktop tb fica no top-nav -->
@@ -115,10 +126,11 @@ export function render(container, state, callbacks = {}) {
         <div class="kanban-board" id="kanban-board">
           ${COLUNAS.map(col => {
             const colItems = porStatus[col.id];
+            const recolhida = lerRecolhidas().has(col.id);
             return `
-              <div class="kanban-col${state._colunaMobileAtiva === col.id ? ' kanban-col-mobile-ativa' : ''}"
-                   data-status="${col.id}" id="kcol-${col.id}">
-                <div class="kanban-col-header" style="--col-cor: ${col.cor}">
+              <div class="kanban-col${state._colunaMobileAtiva === col.id ? ' kanban-col-mobile-ativa' : ''}${recolhida ? ' kanban-col-recolhida' : ''}"
+                   data-status="${col.id}" id="kcol-${col.id}" style="--col-cor: ${col.cor}">
+                <div class="kanban-col-header" title="Clique para recolher/expandir">
                   <div class="kanban-col-title-row">
                     <span class="kanban-col-dot"></span>
                     <span class="kanban-col-titulo">${col.label}</span>
@@ -177,17 +189,39 @@ export function render(container, state, callbacks = {}) {
   if (btnLimpar)  btnLimpar.addEventListener('click', limpar);
   if (btnLimparE) btnLimparE.addEventListener('click', limpar);
 
-  // ── Seletor de coluna mobile ──
-  const colSelect = document.getElementById('kanban-col-select');
-  if (colSelect) {
+  // ── Seletor de coluna mobile (chips) ──
+  const chips = document.getElementById('kanban-col-chips');
+  if (chips) {
     if (!state._colunaMobileAtiva) state._colunaMobileAtiva = 'backlog';
+    const marcarChip = () => chips.querySelectorAll('.kcol-chip').forEach(b =>
+      b.classList.toggle('kcol-chip-ativa', b.dataset.col === state._colunaMobileAtiva)
+    );
+    marcarChip();
     atualizarColunasMobile(container, state._colunaMobileAtiva);
-    colSelect.value = state._colunaMobileAtiva;
-    colSelect.addEventListener('change', () => {
-      state._colunaMobileAtiva = colSelect.value;
-      atualizarColunasMobile(container, colSelect.value);
+    chips.querySelectorAll('.kcol-chip').forEach(b => {
+      b.addEventListener('click', () => {
+        state._colunaMobileAtiva = b.dataset.col;
+        marcarChip();
+        atualizarColunasMobile(container, state._colunaMobileAtiva);
+      });
     });
+    // Deixa o chip ativo visível
+    chips.querySelector('.kcol-chip-ativa')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
+
+  // ── Recolher/expandir colunas (desktop) ──
+  container.querySelectorAll('.kanban-col-header').forEach(h => {
+    h.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-arquivar-col')) return;
+      if (!window.matchMedia('(min-width: 768px)').matches) return;
+      const col = h.closest('.kanban-col');
+      const rec = lerRecolhidas();
+      if (rec.has(col.dataset.status)) rec.delete(col.dataset.status);
+      else rec.add(col.dataset.status);
+      localStorage.setItem('tmw_kanban_recolhidas', JSON.stringify([...rec]));
+      col.classList.toggle('kanban-col-recolhida');
+    });
+  });
 
   // ── Backup / calendário / arquivar ──
   const kbExport = document.getElementById('kb-export');
@@ -217,6 +251,11 @@ function setupDragDrop(container, onStatusChange) {
       card.classList.add('dragging');
     });
     card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  });
+
+  // Arrastar sobre coluna recolhida expande na hora (para poder soltar)
+  container.querySelectorAll('.kanban-col-recolhida').forEach(col => {
+    col.addEventListener('dragover', () => col.classList.remove('kanban-col-recolhida'));
   });
 
   container.querySelectorAll('.kanban-col-items').forEach(zone => {

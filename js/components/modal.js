@@ -33,10 +33,13 @@ export function openModal(itemId = null, defaults = {}, { ocorrencia = null } = 
   document.getElementById('btn-modal-fechar').addEventListener('click', closeModal);
   document.getElementById('btn-modal-cancelar').addEventListener('click', closeModal);
 
-  // Tipo → toggle campos de hora
-  const tipoSel = document.getElementById('input-tipo');
-  tipoSel.addEventListener('change', () => toggleHoras(tipoSel.value));
-  toggleHoras(tipoSel.value);
+  // Tipo e Prioridade: pickers de chips (valor guardado em input hidden)
+  setupPicker('picker-tipo', 'input-tipo', (v) => toggleHoras(v));
+  setupPicker('picker-prio', 'input-prioridade');
+  toggleHoras(document.getElementById('input-tipo').value);
+
+  // Tags: sugestões clicáveis das tags já existentes
+  setupTagsSugestoes();
 
   // Recorrência toggle (também re-renderiza subtarefas: recorrente não tem checkbox)
   const recCheck = document.getElementById('input-recorrente');
@@ -61,6 +64,52 @@ export function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
   document.getElementById('modal').innerHTML = '';
   _subtarefas = [];
+}
+
+// ─── Pickers de chips ────────────────────────────────────────────────────────
+
+function setupPicker(pickerId, inputId, onChange = null) {
+  const picker = document.getElementById(pickerId);
+  if (!picker) return;
+  picker.querySelectorAll('.pick-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      picker.querySelectorAll('.pick-chip').forEach(x => x.classList.remove('pick-chip-sel'));
+      btn.classList.add('pick-chip-sel');
+      document.getElementById(inputId).value = btn.dataset.value;
+      onChange?.(btn.dataset.value);
+    });
+  });
+}
+
+function setupTagsSugestoes() {
+  const wrap  = document.getElementById('tags-sugestoes');
+  const input = document.getElementById('input-tags');
+  if (!wrap || !input) return;
+
+  const lerTags = () => input.value.split(',').map(t => t.trim()).filter(Boolean);
+  const sync = () => {
+    const atuais = lerTags().map(t => t.toLowerCase());
+    wrap.querySelectorAll('.tag-sug').forEach(b =>
+      b.classList.toggle('tag-sug-sel', atuais.includes(b.dataset.tag.toLowerCase()))
+    );
+  };
+
+  wrap.querySelectorAll('.tag-sug').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.tag;
+      let tags = lerTags();
+      if (tags.some(x => x.toLowerCase() === t.toLowerCase())) {
+        tags = tags.filter(x => x.toLowerCase() !== t.toLowerCase());
+      } else {
+        tags.push(t);
+      }
+      input.value = tags.join(', ');
+      sync();
+    });
+  });
+
+  input.addEventListener('input', sync);
+  sync();
 }
 
 // ─── Salvar ──────────────────────────────────────────────────────────────────
@@ -231,6 +280,23 @@ function val(item, field, def = '') {
   return v !== undefined && v !== null ? v : def;
 }
 
+const TIPOS = [
+  { v: 'tarefa',   label: 'Tarefa'   },
+  { v: 'projeto',  label: 'Projeto'  },
+  { v: 'reuniao',  label: 'Reunião'  },
+  { v: 'entrega',  label: 'Entrega'  },
+  { v: 'evento',   label: 'Evento'   },
+  { v: 'lembrete', label: 'Lembrete' },
+  { v: 'feriado',  label: 'Feriado'  },
+];
+
+const PRIOS = [
+  { v: 'baixa',   label: 'Baixa'   },
+  { v: 'media',   label: 'Média'   },
+  { v: 'alta',    label: 'Alta'    },
+  { v: 'urgente', label: 'Urgente' },
+];
+
 function renderForm(item, defaults = {}, { ocorrencia = null } = {}) {
   const titulo    = item ? val(item, 'titulo') : (defaults.titulo || '');
   const tipo      = item ? val(item, 'tipo', 'tarefa')   : (defaults.tipo || 'tarefa');
@@ -249,6 +315,8 @@ function renderForm(item, defaults = {}, { ocorrencia = null } = {}) {
   const DIAS_CURTOS_LABEL = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
 
   const isVirtual = !!ocorrencia;
+
+  const tagsExistentes = [...new Set(db.getAll().flatMap(i => i.tags || []))].sort();
 
   return `
     <div class="modal-inner">
@@ -275,89 +343,60 @@ function renderForm(item, defaults = {}, { ocorrencia = null } = {}) {
           <input id="input-titulo" type="text" value="${escapeHtml(titulo)}" placeholder="O que precisa ser feito?" autocomplete="off">
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="input-tipo">Tipo</label>
-            <select id="input-tipo">
-              ${opt(['tarefa','projeto','reuniao','entrega','feriado','evento','lembrete'], tipo,
-                {tarefa:'Tarefa',projeto:'Projeto',reuniao:'Reunião',entrega:'Entrega',feriado:'Feriado',evento:'Evento',lembrete:'Lembrete'})}
-            </select>
+        <div class="form-group">
+          <label>Tipo</label>
+          <input type="hidden" id="input-tipo" value="${tipo}">
+          <div class="chip-picker" id="picker-tipo">
+            ${TIPOS.map(t => `
+              <button type="button" class="pick-chip${t.v === tipo ? ' pick-chip-sel' : ''}"
+                      data-value="${t.v}" style="--chip-cor: var(--tipo-${t.v})">${t.label}</button>
+            `).join('')}
           </div>
-          <div class="form-group">
-            <label for="input-prioridade">Prioridade</label>
-            <select id="input-prioridade">
-              ${opt(['baixa','media','alta','urgente'], prio, {baixa:'Baixa',media:'Média',alta:'Alta',urgente:'Urgente'})}
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="input-data">Data</label>
-            <input id="input-data" type="date" value="${data}">
-          </div>
-          <div class="form-group">
-            <label for="input-prazo">Prazo</label>
-            <input id="input-prazo" type="date" value="${prazo}">
-          </div>
-        </div>
-
-        <div id="grupo-hora" class="form-row">
-          <div class="form-group">
-            <label for="input-hora-inicio">Início</label>
-            <input id="input-hora-inicio" type="time" value="${horaI}">
-          </div>
-          <div class="form-group">
-            <label for="input-hora-fim">Fim</label>
-            <input id="input-hora-fim" type="time" value="${horaF}">
-          </div>
-        </div>
-
-        <div class="form-check">
-          <input type="checkbox" id="input-notificar" ${notificar ? 'checked' : ''}>
-          <label for="input-notificar">Notificar — incluir na exportação do calendário</label>
         </div>
 
         <div class="form-group">
-          <label for="input-status">Status</label>
-          <select id="input-status">
-            ${opt(['backlog','ativo','em_andamento','aguardando','pausado','concluido','cancelado','arquivado'], status,
-              {backlog:'Backlog',ativo:'Ativo',em_andamento:'Em andamento',aguardando:'Aguardando',
-               pausado:'Pausado',concluido:'Concluído',cancelado:'Cancelado',arquivado:'Arquivado'})}
-          </select>
+          <label>Prioridade</label>
+          <input type="hidden" id="input-prioridade" value="${prio}">
+          <div class="chip-picker" id="picker-prio">
+            ${PRIOS.map(p => `
+              <button type="button" class="pick-chip${p.v === prio ? ' pick-chip-sel' : ''}"
+                      data-value="${p.v}" style="--chip-cor: var(--prio-${p.v})">${p.label}</button>
+            `).join('')}
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="input-tags">Tags</label>
-          <input id="input-tags" type="text" value="${escapeHtml(tags)}" placeholder="trabalho, pessoal, urgente">
-          <small class="form-hint">Separadas por vírgula</small>
-        </div>
-
-        <div class="form-group">
-          <label for="input-descricao">Descrição</label>
-          <textarea id="input-descricao" rows="2" placeholder="Detalhes opcionais...">${escapeHtml(descricao)}</textarea>
-        </div>
-
-        <!-- Subtarefas -->
+        <!-- Agendamento: data, horário, repetição e notificação juntos -->
         <div class="form-section">
-          <div class="form-section-label">Subtarefas</div>
-          <div id="subtarefas-list" class="subtarefas-list"></div>
-          <div class="subtarefa-add-row">
-            <input type="text" id="input-nova-subtarefa" placeholder="Adicionar subtarefa..." autocomplete="off">
-            <button type="button" class="btn-sub-add" id="btn-add-subtarefa">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-          </div>
-        </div>
+          <div class="form-section-label">Agendamento</div>
 
-        <!-- Recorrência -->
-        <div class="form-section">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="input-data">Data</label>
+              <input id="input-data" type="date" value="${data}">
+            </div>
+            <div class="form-group">
+              <label for="input-prazo">Prazo</label>
+              <input id="input-prazo" type="date" value="${prazo}">
+            </div>
+          </div>
+
+          <div id="grupo-hora" class="form-row">
+            <div class="form-group">
+              <label for="input-hora-inicio">Início</label>
+              <input id="input-hora-inicio" type="time" value="${horaI}">
+            </div>
+            <div class="form-group">
+              <label for="input-hora-fim">Fim</label>
+              <input id="input-hora-fim" type="time" value="${horaF}">
+            </div>
+          </div>
+
           <div class="form-check form-section-toggle">
             <input type="checkbox" id="input-recorrente" ${rec ? 'checked' : ''}>
-            <label for="input-recorrente" class="form-section-label" style="cursor:pointer">Repetir</label>
+            <label for="input-recorrente" style="cursor:pointer">Repetir</label>
           </div>
 
-          <div id="rec-campos" style="display:${rec ? 'flex' : 'none'}; flex-direction:column; gap:12px; margin-top:4px;">
+          <div id="rec-campos" style="display:${rec ? 'flex' : 'none'}; flex-direction:column; gap:12px;">
             <div class="form-row">
               <div class="form-group">
                 <label for="input-rec-frequencia">Frequência</label>
@@ -396,6 +435,54 @@ function renderForm(item, defaults = {}, { ocorrencia = null } = {}) {
               <label for="input-rec-data-fim">Data de fim (opcional)</label>
               <input id="input-rec-data-fim" type="date" value="${recObj?.dataFim || ''}">
             </div>
+          </div>
+
+          <div class="form-check">
+            <input type="checkbox" id="input-notificar" ${notificar ? 'checked' : ''}>
+            <label for="input-notificar">Notificar — incluir na exportação do calendário</label>
+          </div>
+        </div>
+
+        <!-- Organização -->
+        <div class="form-section">
+          <div class="form-section-label">Organização</div>
+
+          <div class="form-group">
+            <label for="input-status">Status</label>
+            <select id="input-status">
+              ${opt(['backlog','ativo','em_andamento','aguardando','pausado','concluido','cancelado','arquivado'], status,
+                {backlog:'Backlog',ativo:'Ativo',em_andamento:'Em andamento',aguardando:'Aguardando',
+                 pausado:'Pausado',concluido:'Concluído',cancelado:'Cancelado',arquivado:'Arquivado'})}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="input-tags">Tags</label>
+            <input id="input-tags" type="text" value="${escapeHtml(tags)}" placeholder="trabalho, pessoal, urgente">
+            ${tagsExistentes.length > 0 ? `
+              <div class="tags-sugestoes" id="tags-sugestoes">
+                ${tagsExistentes.map(t => `
+                  <button type="button" class="tag-sug" data-tag="${escapeHtml(t)}">${escapeHtml(t)}</button>
+                `).join('')}
+              </div>
+            ` : '<small class="form-hint">Separadas por vírgula</small>'}
+          </div>
+
+          <div class="form-group">
+            <label for="input-descricao">Descrição</label>
+            <textarea id="input-descricao" rows="2" placeholder="Detalhes opcionais...">${escapeHtml(descricao)}</textarea>
+          </div>
+        </div>
+
+        <!-- Subtarefas -->
+        <div class="form-section">
+          <div class="form-section-label">Subtarefas</div>
+          <div id="subtarefas-list" class="subtarefas-list"></div>
+          <div class="subtarefa-add-row">
+            <input type="text" id="input-nova-subtarefa" placeholder="Adicionar subtarefa..." autocomplete="off">
+            <button type="button" class="btn-sub-add" id="btn-add-subtarefa">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
           </div>
         </div>
 
